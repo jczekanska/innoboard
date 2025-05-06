@@ -3,7 +3,7 @@
 ## Setup
 
 1. `git clone ... && cd innoboard`
-2. `docker-compose up --build`
+2. `docker compose up --build`
 
 ## Running in a web browser
 
