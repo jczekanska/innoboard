@@ -13,7 +13,6 @@ export const AuthContext = createContext<AuthContextType>({
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [token, setToken] = useState<string | null>(null);
 
-  // On mount, read any existing token
   useEffect(() => {
     const stored = localStorage.getItem('access_token');
     if (stored) setToken(stored);

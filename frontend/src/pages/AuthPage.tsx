@@ -1,5 +1,4 @@
 import React, { useState, ChangeEvent, FormEvent, useContext } from 'react';
-import type { ChangeEvent as CE, FormEvent as FE } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 
@@ -27,11 +26,14 @@ const AuthPage: React.FC = () => {
 
   const validate = () => {
     const errs: string[] = [];
-    if (!emailRegex.test(email)) errs.push('Invalid email format');
-    passwordRules.forEach(rule => {
-      if (!rule.regex.test(password)) errs.push(rule.message);
-    });
-    if (mode === 'signup' && password !== confirmPassword) errs.push('Passwords do not match');
+    if (!emailRegex.test(email)) errs.push('Please enter a valid email address');
+    if (!password) errs.push('Please enter your password');
+    if (mode === 'signup') {
+      passwordRules.forEach(rule => {
+        if (!rule.regex.test(password)) errs.push(rule.message);
+      });
+      if (password !== confirmPassword) errs.push('Passwords do not match');
+    }
     return errs;
   };
 
@@ -51,7 +53,6 @@ const AuthPage: React.FC = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Error');
 
-      // store & update context
       localStorage.setItem('access_token', data.access_token);
       setToken(data.access_token);
 
