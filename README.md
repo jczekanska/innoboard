@@ -1,5 +1,7 @@
 # Innoboard
 
+No user-friendly UI yet :)
+
 ## Setup
 
 1. `git clone ... && cd innoboard`
