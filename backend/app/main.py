@@ -8,9 +8,6 @@ from sqlalchemy import text
 from . import models, schemas, crud, auth
 from .database import async_session, sync_engine, Base
 
-app = FastAPI()
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     for _ in range(10):
@@ -24,6 +21,8 @@ async def lifespan(app: FastAPI):
 
     yield
     sync_engine.dispose()
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
