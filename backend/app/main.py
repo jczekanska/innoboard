@@ -1,11 +1,29 @@
-import os
+import time
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import OperationalError
+from sqlalchemy import text
 from . import models, schemas, crud, auth
-from .database import async_session
+from .database import async_session, sync_engine, Base
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    for _ in range(10):
+        try:
+            with sync_engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            break
+        except OperationalError:
+            time.sleep(2)
+    Base.metadata.create_all(bind=sync_engine)
+
+    yield
+    sync_engine.dispose()
+
+app = FastAPI(lifespan=lifespan)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
