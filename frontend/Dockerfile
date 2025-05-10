@@ -8,4 +8,6 @@ COPY . .
 
 EXPOSE 5173
 
+
+CMD ["npm", "install", "react-router-dom"]
 CMD ["npm", "run", "dev", "--", "--host"]
