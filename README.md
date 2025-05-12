@@ -20,9 +20,9 @@ No user-friendly UI yet :)
 - [x] As a logged user, I must be able to log out, so that I can securely end my session and protect my account.
 - [ ] As a logged user, I must be able to change my password, so that I can secure my account.
 - [x] As a logged user, I must be able to create a canvas, so that I can start a new workspace for collaboration.
-- [ ] As an editor, I must be able to enter text on the canvas, so that I can add notes, labels, or ideas to my workspace.
+- [x] As an editor, I must be able to enter text on the canvas, so that I can add notes, labels, or ideas to my workspace.
 - [x] As a editor, I must be able to draw on the canvas, so that I can sketch ideas or annotate visually.
-- [ ] As an editor, I must be able to erase drawings on the canvas, so that I can correct mistakes or clean up my workspace.
+- [x] As an editor, I must be able to erase drawings on the canvas, so that I can correct mistakes or clean up my workspace.
 - [ ] As an editor, I must be able to move and resize things on my canvas, so that I can organize my workspace however I want.
 - [ ] As a canvas owner, I must be able to share my canvas, so that I can collaborate with others in real time.
 - [ ] As a logged user,​ I must be able to join a collaborative canvas,​ so that I can work on it with others in real time.
