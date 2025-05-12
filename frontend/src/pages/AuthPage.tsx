@@ -1,15 +1,37 @@
-import React, { useState, ChangeEvent, FormEvent, useContext } from 'react';
+// src/pages/AuthPage.tsx
+import React, {
+  useState,
+  useContext,
+  useEffect,
+  type FormEvent,
+  type ChangeEvent,
+} from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from '../components/ui/card';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
+import { Alert, AlertDescription } from '../components/ui/alert';
+import { AlertCircle } from 'lucide-react';
+
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const passwordRules = [
-    { regex: /.{8,}/, message: 'At least 8 characters' },
-    { regex: /[A-Z]/, message: 'One uppercase letter' },
-    { regex: /[a-z]/, message: 'One lowercase letter' },
-    { regex: /[0-9]/, message: 'One number' },
-    { regex: /[!@#$%^&*]/, message: 'One special character' },
-  ];
+  { regex: /.{8,}/, message: 'At least 8 characters' },
+  { regex: /[A-Z]/, message: 'One uppercase letter' },
+  { regex: /[a-z]/, message: 'One lowercase letter' },
+  { regex: /[0-9]/, message: 'One number' },
+  { regex: /[!@#$%^&*]/, message: 'One special character' },
+];
 
 type Mode = 'signup' | 'login';
 
@@ -19,8 +41,10 @@ const AuthPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errors, setErrors] = useState<string[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiError, setApiError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [wasSubmitted, setWasSubmitted] = useState(false);
+
   const navigate = useNavigate();
   const { setToken } = useContext(AuthContext);
 
@@ -29,19 +53,27 @@ const AuthPage: React.FC = () => {
     if (!emailRegex.test(email)) errs.push('Please enter a valid email address');
     if (!password) errs.push('Please enter your password');
     if (mode === 'signup') {
-      passwordRules.forEach(rule => {
-        if (!rule.regex.test(password)) errs.push(rule.message);
+      passwordRules.forEach((r) => {
+        if (!r.regex.test(password)) errs.push(r.message);
       });
       if (password !== confirmPassword) errs.push('Passwords do not match');
     }
     return errs;
   };
 
+  useEffect(() => {
+    setErrors([]);
+    setApiError('');
+    setWasSubmitted(false);
+  }, [mode]);
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     const validationErrors = validate();
+    setWasSubmitted(true);
     setErrors(validationErrors);
     if (validationErrors.length) return;
+
     setIsSubmitting(true);
     setApiError('');
     try {
@@ -51,11 +83,10 @@ const AuthPage: React.FC = () => {
         body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Error');
+      if (!res.ok) throw new Error(data.detail ?? 'Error');
 
       localStorage.setItem('access_token', data.access_token);
       setToken(data.access_token);
-
       navigate('/dashboard');
     } catch (err: any) {
       setApiError(err.message);
@@ -65,65 +96,161 @@ const AuthPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-md mx-auto mt-20 p-6 border rounded">
-      <div className="flex justify-center mb-6">
-        <button
-          onClick={() => setMode('signup')}
-          className={`px-4 py-2 ${mode === 'signup' ? 'font-bold' : ''}`}
-        >
-          Sign Up
-        </button>
-        <button
-          onClick={() => setMode('login')}
-          className={`px-4 py-2 ${mode === 'login' ? 'font-bold' : ''}`}
-        >
-          Log In
-        </button>
-      </div>
-      <form onSubmit={handleSubmit} noValidate>
-        <div className="mb-4">
-          <label className="block mb-1">Email</label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
-            className="w-full p-2 border rounded"
-          />
-        </div>
-        <div className="mb-4">
-          <label className="block mb-1">Password</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
-            className="w-full p-2 border rounded"
-          />
-        </div>
-        {mode === 'signup' && (
-          <div className="mb-4">
-            <label className="block mb-1">Confirm Password</label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e: ChangeEvent<HTMLInputElement>) => setConfirmPassword(e.target.value)}
-              className="w-full p-2 border rounded"
-            />
-          </div>
-        )}
-        {errors.length > 0 && (
-          <ul className="text-red-600 mb-4 list-disc list-inside">
-            {errors.map((err, i) => <li key={i}>{err}</li>)}
-          </ul>
-        )}
-        {apiError && <p className="text-red-600 mb-4">{apiError}</p>}
-        <button
-          type="submit"
-          disabled={isSubmitting || validate().length > 0}
-          className="w-full p-2 bg-blue-600 text-white rounded"
-        >
-          {isSubmitting ? 'Please wait...' : mode === 'signup' ? 'Sign Up' : 'Log In'}
-        </button>
-      </form>
+    <div className="w-screen h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
+      <Card className="w-full max-w-md mx-auto">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl font-bold text-center">Innoboard</CardTitle>
+          <CardDescription className="text-center">
+            {mode === 'login' ? 'Sign in to your account' : 'Create a new account'}
+          </CardDescription>
+        </CardHeader>
+
+        <Tabs value={mode} onValueChange={(v) => setMode(v as Mode)} className="w-full">
+          <TabsList className="h-12 grid grid-cols-2 w-full bg-gray-100 dark:bg-gray-800 rounded-t-lg overflow-hidden">
+            <TabsTrigger
+              value="signup"
+              className="data-[state=active]:bg-white data-[state=inactive]:text-gray-600 dark:data-[state=inactive]:text-gray-400"
+            >
+              Sign Up
+            </TabsTrigger>
+            <TabsTrigger
+              value="login"
+              className="data-[state=active]:bg-white data-[state=inactive]:text-gray-600 dark:data-[state=inactive]:text-gray-400"
+            >
+              Log In
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Signup */}
+          <TabsContent value="signup">
+            <form onSubmit={handleSubmit} noValidate>
+              <CardContent className="pt-6 space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email-signup">Email</Label>
+                  <Input
+                    id="email-signup"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password-signup">Password</Label>
+                  <Input
+                    id="password-signup"
+                    type="password"
+                    value={password}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirm-password">Confirm Password</Label>
+                  <Input
+                    id="confirm-password"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setConfirmPassword(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {wasSubmitted && errors.length > 0 && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      <ul className="list-disc list-inside text-sm">
+                        {errors.map((err, i) => (
+                          <li key={i}>{err}</li>
+                        ))}
+                      </ul>
+                    </AlertDescription>
+                  </Alert>
+                )}
+                {apiError && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{apiError}</AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+              <CardFooter className="pt-4">
+                <Button
+                  type="submit"
+                  className="w-full bg-black text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? 'Creating account...' : 'Create account'}
+                </Button>
+              </CardFooter>
+            </form>
+          </TabsContent>
+
+          {/* Login */}
+          <TabsContent value="login">
+            <form onSubmit={handleSubmit} noValidate>
+              <CardContent className="pt-6 space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email-login">Email</Label>
+                  <Input
+                    id="email-login"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <Label htmlFor="password-login">Password</Label>
+                    <Button variant="link" className="p-0 text-xs">
+                      Forgot password?
+                    </Button>
+                  </div>
+                  <Input
+                    id="password-login"
+                    type="password"
+                    value={password}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {wasSubmitted && errors.length > 0 && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      <ul className="list-disc list-inside text-sm">
+                        {errors.map((err, i) => (
+                          <li key={i}>{err}</li>
+                        ))}
+                      </ul>
+                    </AlertDescription>
+                  </Alert>
+                )}
+                {apiError && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{apiError}</AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+              <CardFooter className="pt-4">
+                <Button
+                  type="submit"
+                  className="w-full bg-black text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? 'Signing in...' : 'Sign in'}
+                </Button>
+              </CardFooter>
+            </form>
+          </TabsContent>
+        </Tabs>
+      </Card>
     </div>
   );
 };
