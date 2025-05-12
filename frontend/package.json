@@ -23,7 +23,7 @@
     "react-router-dom": "^7.6.0",
     "styled-components": "^6.1.17",
     "tailwind-merge": "^3.3.0",
-    "tailwindcss": "^4.1.6"
+    "tailwindcss": "^4.1.6",
     "react-rnd": "^10.3.6"
 
   },
