@@ -14,6 +14,6 @@
   "include": [
     "src",
     "vite.config.ts" 
-  ],
+, "types.ts"  ],
   "exclude": ["node_modules"]
 }

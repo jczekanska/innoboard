@@ -2,6 +2,7 @@ import React, { useContext } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import AuthPage from './pages/AuthPage';
 import Dashboard from './pages/Dashboard';
+import CanvasPage from './pages/CanvasPage';
 import { AuthContext } from './context/AuthContext';
 
 const App: React.FC = () => {
@@ -15,6 +16,10 @@ const App: React.FC = () => {
       <Route
         path="/dashboard"
         element={token ? <Dashboard /> : <Navigate to="/" replace />}
+      />
+      <Route
+        path="/canvas/:id"
+        element={token ? <CanvasPage /> : <Navigate to="/" replace />}
       />
     </Routes>
   );
