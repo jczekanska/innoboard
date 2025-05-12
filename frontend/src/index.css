@@ -1,2 +1,12 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+
+.canvas-frame {
+  position: relative;
+  overflow: hidden;
+}
+.canvas-inner-frame {
+  border: 4px solid #ddd;
+  background: #fff;
+  display: inline-block;
+}

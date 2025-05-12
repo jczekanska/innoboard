@@ -1,149 +1,165 @@
-import React, { useContext, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { AuthContext } from '../context/AuthContext';
-import type { Canvas, Invitation } from '../../types';
+import React, { useContext, useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { AuthContext } from "../context/AuthContext";
+import type { Canvas, Invitation } from "../../types";
+
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+} from "../components/ui/card";
+import { Button } from "../components/ui/button";
+import { List, ListItem } from "../components/ui/list";
+import { Separator } from "../components/ui/separator";
 
 const Dashboard: React.FC = () => {
   const { token, setToken } = useContext(AuthContext);
   const [menuOpen, setMenuOpen] = useState(false);
-  const navigate = useNavigate();
   const [myCanvases, setMyCanvases] = useState<Canvas[]>([]);
   const [joined, setJoined] = useState<Canvas[]>([]);
+  const navigate = useNavigate();
 
-  const handleLogout = () => {
-    localStorage.removeItem('access_token');
-    setToken(null);
-    navigate('/');
-  };
-
-  const loadMy = () => {
-    fetch('/api/canvases', { headers: { Authorization: `Bearer ${token}` } })
-      .then(res => res.json())
+  const loadMy = () =>
+    fetch("/api/canvases", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
       .then(setMyCanvases);
-  };
 
-  const loadJoined = () => {
-    fetch('/api/invitations', { headers: { Authorization: `Bearer ${token}` } })
-      .then(res => res.json())
-      .then((invs: Invitation[]) => {
+  const loadJoined = () =>
+    fetch("/api/invitations", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((invs: Invitation[]) =>
         Promise.all(
-          invs.map(inv =>
-            fetch(`/api/canvases/${inv.canvas_id}`, { headers: { Authorization: `Bearer ${token}` } })
-              .then(res => res.json())
+          invs.map((inv) =>
+            fetch(`/api/canvases/${inv.canvas_id}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            }).then((r) => r.json())
           )
-        ).then(setJoined);
-      });
-  };
+        )
+      )
+      .then(setJoined);
 
-  useEffect(() => { 
+  useEffect(() => {
     if (!token) return;
     loadMy();
     loadJoined();
-   }, [token]);
+  }, [token]);
 
-  const handleNew = () => {
-    // prompt for unsaved changes here if needed
-    fetch('/api/canvases', {
-      method: 'POST',
+  const handleNew = () =>
+    fetch("/api/canvases", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ name: '' })
+      body: JSON.stringify({ name: "" }),
     })
-      .then(res => res.json())
-      .then(canvas => navigate(`/canvas/${canvas.id}`));
+      .then((r) => r.json())
+      .then((c) => navigate(`/canvas/${c.id}`));
+
+  const handleLogout = () => {
+    localStorage.removeItem("access_token");
+    setToken(null);
+    navigate("/");
   };
 
-  const handleDelete = (id: number) => {
-    if (window.confirm('Delete this canvas?')) {
-      fetch(`/api/canvases/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      }).then(() => loadMy());
-    }
+  const handleRename = (c: Canvas) => {
+    const newName = prompt("Enter new name:", c.name);
+    if (!newName) return;
+    fetch(`/api/canvases/${c.id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ name: newName }),
+    }).then(loadMy);
   };
 
-  const handleRename = (id: number) => {
-    const newName = window.prompt('Enter new name:');
-    if (newName) {
-      fetch(`/api/canvases/${id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ name: newName })
-      }).then(() => loadMy());
-    }
+  const handleDelete = (c: Canvas) => {
+    if (!confirm("Delete this canvas?")) return;
+    fetch(`/api/canvases/${c.id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(loadMy);
   };
 
   return (
-    <div className="relative min-h-screen p-6 bg-gray-50">
-      {/* Avatar n Meun*/}
-      <div className="flex justify-end">
+    <Card className="max-w-3xl mx-auto mt-10">
+      <CardHeader className="flex items-center justify-between">
+        <CardTitle>Dashboard</CardTitle>
         <div className="relative">
           <button
-            onClick={() => setMenuOpen(prev => !prev)}
-            className="focus:outline-none"
+            onClick={() => setMenuOpen((o) => !o)}
+            className="rounded-full border p-1"
           >
             <img
               src="/base_avatar.jpg"
-              alt="User Avatar"
-              className="w-10 h-10 rounded-full border"
+              alt="avatar"
+              className="w-8 h-8 rounded-full"
             />
           </button>
           {menuOpen && (
-            <div className="absolute right-0 mt-2 w-40 bg-white border rounded-lg shadow-lg">
+            <div className="absolute right-0 mt-2 w-36 bg-card border shadow-md">
               <button
                 onClick={handleLogout}
-                className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+                className="w-full text-left px-4 py-2 hover:bg-muted"
               >
                 Log Out
               </button>
             </div>
           )}
         </div>
-      </div>
+      </CardHeader>
 
-      {/* Dashboard Content */}
-      <h1 className="text-2xl font-bold mt-8">Dashboard</h1>
-      <p className="mt-4">Welcome! You are now logged in. 🎉</p>
-      <button
-        onClick={handleNew}
-        className="mt-4 px-4 py-2 bg-green-600 text-white rounded"
-      >
-        New Canvas
-      </button>
-      <section className="mt-8">
-        <h2 className="text-xl">My Canvases</h2>
-        <ul>
-          {myCanvases.map(c => (
-            <li key={c.id} className="flex items-center space-x-4">
-            <button onClick={() => navigate(`/canvas/${c.id}`)}>
-              {c.name}
-            </button>
-            <span>Last modified: {new Date(c.updated_at).toLocaleString()}</span>
-            <button onClick={() => handleRename(c.id)}>✏️</button>
-            <button onClick={() => handleDelete(c.id)}>🗑️</button>
-          </li>
-          ))}
-        </ul>
-      </section>
+      <CardContent className="space-y-6">
+        <Button onClick={handleNew}>+ New Canvas</Button>
 
-      <section className="mt-8">
-        <h2 className="text-xl">Canvases I Joined</h2>
-        <ul>
-          {joined.map(c => (
-            <li key={c.id}> 
-              <button onClick={() => navigate(`/canvas/${c.id}`)}>
-                {c.name}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </section>
-    </div>
+        <div>
+          <h3 className="text-lg font-medium">My Canvases</h3>
+          <Separator />
+          {myCanvases.length === 0 ? (
+            <p className="text-center text-muted">You have no canvases yet.</p>
+          ) : (
+            <List>
+              {myCanvases.map((c) => (
+                <ListItem key={c.id}>
+                  <Button variant="link" onClick={() => navigate(`/canvas/${c.id}`)}>
+                    {c.name || "(untitled)"}
+                  </Button>
+                  <div className="flex space-x-2">
+                    <Button variant="outline" onClick={() => handleRename(c)}>
+                      ✏️
+                    </Button>
+                    <Button variant="destructive" onClick={() => handleDelete(c)}>
+                      🗑️
+                    </Button>
+                  </div>
+                </ListItem>
+              ))}
+            </List>
+          )}
+        </div>
+
+        <div>
+          <h3 className="text-lg font-medium">Canvases I Joined</h3>
+          <Separator />
+          {joined.length === 0 ? (
+            <p className="text-center text-muted">No shared canvases.</p>
+          ) : (
+            <List>
+              {joined.map((c) => (
+                <ListItem key={c.id}>
+                  <Button variant="link" onClick={() => navigate(`/canvas/${c.id}`)}>
+                    {c.name}
+                  </Button>
+                </ListItem>
+              ))}
+            </List>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 
