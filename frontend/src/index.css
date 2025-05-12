@@ -4,22 +4,17 @@
   font-weight: 400;
 
   color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  color: #333;
+  background-color: #ffe6ea;
 }
 
 a {
   font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
+  color: #ff6699;
+  text-decoration: none;
 }
 a:hover {
-  color: #535bf2;
+  color: #ff3366; 
 }
 
 body {
@@ -28,11 +23,13 @@ body {
   place-items: center;
   min-width: 320px;
   min-height: 100vh;
+  background-color: #ffe6ea;
 }
 
 h1 {
   font-size: 3.2em;
   line-height: 1.1;
+  color: #cc0044;
 }
 
 button {
@@ -42,27 +39,94 @@ button {
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  background-color: #1a1a1a;
+  background-color: #ffb3c1;
+  color: #333;
   cursor: pointer;
-  transition: border-color 0.25s;
+  transition: background-color 0.25s, border-color 0.25s;
 }
 button:hover {
-  border-color: #646cff;
+  background-color: #ff8bad;
+  border-color: #ff6699;
 }
 button:focus,
 button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  outline: 4px auto #ff3366;
 }
 
 @media (prefers-color-scheme: light) {
   :root {
-    color: #213547;
-    background-color: #ffffff;
+    color: #333;
+    background-color: #fff0f4;
   }
   a:hover {
-    color: #747bff;
+    color: #ff4d7a;
   }
   button {
-    background-color: #f9f9f9;
+    background-color: #ffd6dc;
   }
+}
+
+.card {
+  padding: 2em;
+  background-color: #fff;
+  border: 2px solid #ffb3c1;
+  border-radius: 8px;
+}
+
+.read-the-docs {
+  color: #cc0044;
+}
+
+/* Canvas Page Theme */
+.canvas-page {
+  background-color: #ffe6ea; 
+  padding: 16px;
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.canvas-frame {
+  border: 4px solid #ff6699; 
+  padding: 8px;
+  background-color: #fff;
+  display: inline-block;
+}
+
+.canvas-frame canvas {
+  display: block;
+}
+
+/* Toolbar container */
+.canvas-toolbar {
+  background-color: #ffe4ec; 
+  border-bottom: 1px solid #ffb3c1;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Toolbar controls */
+.canvas-toolbar input[type="color"],
+.canvas-toolbar input[type="range"] {
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+.canvas-toolbar button {
+  background-color: #ffb3c1;
+  border: 1px solid #ff8bad; 
+  color: #333;
+  padding: 0.4em 0.8em;
+  border-radius: 4px;
+}
+.canvas-toolbar button:hover {
+  background-color: #ff8bad;
+}
+.canvas-toolbar button.active {
+  background-color: #ff6699;
+  color: #fff; 
+  font-weight: bold;
 }

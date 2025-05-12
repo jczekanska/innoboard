@@ -4,6 +4,7 @@ import AuthPage from './pages/AuthPage';
 import Dashboard from './pages/Dashboard';
 import CanvasPage from './pages/CanvasPage';
 import { AuthContext } from './context/AuthContext';
+import './index.css';  
 
 const App: React.FC = () => {
   const { token } = useContext(AuthContext);

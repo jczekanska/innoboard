@@ -3,9 +3,15 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import type { Canvas as CanvasMeta } from '../../types';
 
+type Mode = 'draw' | 'erase' | 'text';
+
 interface DrawEvent {
   x: number;
   y: number;
+  mode: Mode;
+  color: string;
+  size: number;
+  text?: string;
 }
 
 const CanvasPage: React.FC = () => {
@@ -15,6 +21,10 @@ const CanvasPage: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wsRef = useRef<WebSocket>();
   const [canvasInfo, setCanvasInfo] = useState<CanvasMeta | null>(null);
+
+  const [mode, setMode] = useState<Mode>('draw');
+  const [color, setColor] = useState<string>('#000000');
+  const [size, setSize] = useState<number>(4);
 
   useEffect(() => {
     if (!token || !id) return;
@@ -60,9 +70,25 @@ const CanvasPage: React.FC = () => {
     wsRef.current = ws;
     ws.onopen = () => console.log('WS connected');
     ws.onmessage = (evt) => {
-      const { x, y } = JSON.parse(evt.data) as DrawEvent;
+      const evtData = JSON.parse(evt.data) as DrawEvent;
+      const { x, y, mode, color, size, text } = evtData;
       const ctx = canvasRef.current?.getContext('2d');
-      if (ctx) {
+      if (!ctx) return;
+
+      ctx.lineWidth = size;
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+
+      if (mode === 'erase') {
+        ctx.globalCompositeOperation = 'destination-out';
+      } else {
+        ctx.globalCompositeOperation = 'source-over';
+      }
+
+      if (mode === 'text' && text) {
+        ctx.font = `${size * 4}px sans-serif`;
+        ctx.fillText(text, x, y);
+      } else if (mode !== 'text') {
         ctx.lineTo(x, y);
         ctx.stroke();
       }
@@ -81,18 +107,46 @@ const CanvasPage: React.FC = () => {
     let drawing = false;
 
     const start = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      if (mode === 'text') {
+        const input = prompt('Enter text:');
+        if (!input) return;
+        const evt: DrawEvent = { x, y, mode, color, size, text: input };
+        wsRef.current?.send(JSON.stringify(evt));
+        // also draw locally:
+        ctx.font = `${size * 4}px sans-serif`;
+        ctx.fillStyle = color;
+        ctx.fillText(input, x, y);
+        return;
+      }
+
       drawing = true;
       ctx.beginPath();
-      ctx.moveTo(e.offsetX, e.offsetY);
+      ctx.moveTo(x, y);
     };
+
     const draw = (e: MouseEvent) => {
       if (!drawing) return;
-      ctx.lineTo(e.offsetX, e.offsetY);
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      // set style
+      ctx.lineWidth = size;
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.globalCompositeOperation = mode === 'erase' ? 'destination-out' : 'source-over';
+
+      ctx.lineTo(x, y);
       ctx.stroke();
-      wsRef.current?.send(
-        JSON.stringify({ x: e.offsetX, y: e.offsetY } as DrawEvent)
-      );
+
+      const evt: DrawEvent = { x, y, mode, color, size };
+      wsRef.current?.send(JSON.stringify(evt));
     };
+
     const end = () => {
       drawing = false;
     };
@@ -108,7 +162,7 @@ const CanvasPage: React.FC = () => {
       canvas.removeEventListener('mouseup', end);
       canvas.removeEventListener('mouseleave', end);
     };
-  }, []);
+  }, [mode, color, size]);
 
   const handleSave = () => {
     if (!token || !id) return;
@@ -127,7 +181,10 @@ const CanvasPage: React.FC = () => {
     <div className="min-h-screen flex flex-col">
       <header className="p-4 bg-gray-100 border-b flex items-center space-x-4">
         <h1 className="text-xl">{canvasInfo?.name || 'Loading…'}</h1>
-        <button onClick={handleSave} className="px-2 py-1 bg-blue-500 text-white rounded">
+        <button
+          onClick={handleSave}
+          className="px-2 py-1 bg-blue-500 text-white rounded"
+        >
           Save
         </button>
         <button
@@ -137,13 +194,58 @@ const CanvasPage: React.FC = () => {
           Dashboard
         </button>
       </header>
-      <main className="flex-1">
-        <canvas
-          ref={canvasRef}
-          width={800}
-          height={600}
-          className="bg-white border mx-auto my-4"
-        />
+
+      {/* Toolbar */}
+      <div className="canvas-toolbar">
+        <label>
+          Color:{' '}
+          <input
+            type="color"
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+          />
+        </label>
+
+        <label>
+          Size:{' '}
+          <input
+            type="range"
+            min={1}
+            max={50}
+            value={size}
+            onChange={(e) => setSize(Number(e.target.value))}
+          />
+        </label>
+
+        <button
+          onClick={() => setMode('draw')}
+          className={mode === 'draw' ? 'active' : ''}
+        >
+          ✏️ Draw
+        </button>
+        <button
+          onClick={() => setMode('erase')}
+          className={mode === 'erase' ? 'active' : ''}
+        >
+          🧽 Erase
+        </button>
+        <button
+          onClick={() => setMode('text')}
+          className={mode === 'text' ? 'active' : ''}
+        >
+          🔤 Text
+        </button>
+      </div>
+
+      {/* Canvas with frame */}
+      <main className="canvas-page">
+        <div className="canvas-frame">
+          <canvas
+            ref={canvasRef}
+            width={1200}
+            height={600}
+          />
+        </div>
       </main>
     </div>
   );
