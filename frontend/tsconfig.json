@@ -1,7 +1,18 @@
 {
   "compilerOptions": {
+    // shadcn/ui
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ]
+    },
     "jsx": "react-jsx",
-    "moduleResolution": "node",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": [
+      "node"
+    ], // this helps resolve both 'path' and ESM types
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "target": "ES5",
@@ -13,7 +24,10 @@
   },
   "include": [
     "src",
-    "vite.config.ts" 
-, "types.ts"  ],
-  "exclude": ["node_modules"]
+    "vite.config.ts",
+    "types.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }
