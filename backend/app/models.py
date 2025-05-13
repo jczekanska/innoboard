@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, func, JSON
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, func, JSON, Boolean
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -36,8 +36,10 @@ class Invitation(Base):
     __tablename__ = "invitations"
     id = Column(Integer, primary_key=True, index=True)
     canvas_id = Column(Integer, ForeignKey("canvases.id"), nullable=False)
-    invitee_email = Column(String(256), nullable=False)
+    invitee_email = Column(String(256), nullable=True)
     token = Column(String(64), unique=True, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    disabled = Column(Boolean, default=False, nullable=False)
 
     canvas = relationship("Canvas", back_populates="invitations")
 

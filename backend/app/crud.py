@@ -4,6 +4,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from .models import User, Canvas, Invitation
 from .auth import get_password_hash
+from datetime import datetime, timedelta
 
 async def get_user_by_email(db: AsyncSession, email: str):
     result = await db.execute(select(User).where(User.email == email))
@@ -50,12 +51,57 @@ async def delete_canvas(db: AsyncSession, canvas_id: int):
         await db.commit()
     return canvas
 
-async def create_invitation(db: AsyncSession, canvas_id: int, email: str):
+async def create_invitation(
+    db: AsyncSession,
+    canvas_id: int,
+    invitee_email: str | None,
+    expires_delta: timedelta | None = None,
+):
     token = secrets.token_urlsafe(32)
-    inv = Invitation(canvas_id=canvas_id, invitee_email=email, token=token)
+    expires_at = datetime.utcnow() + expires_delta if expires_delta else None
+    inv = Invitation(
+        canvas_id=canvas_id,
+        invitee_email=invitee_email,
+        token=token,
+        expires_at=expires_at,
+        disabled=False,
+    )
     db.add(inv)
     await db.commit()
     await db.refresh(inv)
+    return inv
+
+async def get_invitations_by_canvas(db: AsyncSession, canvas_id: int):
+    result = await db.execute(
+        select(Invitation).where(Invitation.canvas_id == canvas_id)
+    )
+    return result.scalars().all()
+
+async def validate_token(db: AsyncSession, token: str):
+    result = await db.execute(
+        select(Invitation).where(Invitation.token == token)
+    )
+    inv = result.scalars().first()
+    if not inv or inv.disabled:
+        return None
+    if inv.expires_at and inv.expires_at < datetime.utcnow():
+        return None
+    return inv
+
+async def get_invitation_by_token(db: AsyncSession, token: str):
+    result = await db.execute(
+        select(Invitation).where(Invitation.token == token)
+    )
+    return result.scalars().first()
+
+async def accept_invitation(db: AsyncSession, token: str, email: str):
+    inv = await get_invitation_by_token(db, token)
+    if not inv:
+        return None
+    if inv.invitee_email is None:
+        inv.invitee_email = email
+        await db.commit()
+        await db.refresh(inv)
     return inv
 
 async def get_invitations_for_user(db: AsyncSession, email: str):

@@ -6,7 +6,7 @@ import React, {
   type FormEvent,
   type ChangeEvent,
 } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 
 import { Button } from '../components/ui/button';
@@ -24,6 +24,12 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs'
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 
+type Mode = "signup" | "login";
+
+interface AuthPageProps {
+  initialMode?: Mode;
+}
+
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const passwordRules = [
   { regex: /.{8,}/, message: 'At least 8 characters' },
@@ -33,9 +39,7 @@ const passwordRules = [
   { regex: /[!@#$%^&*]/, message: 'One special character' },
 ];
 
-type Mode = 'signup' | 'login';
-
-const AuthPage: React.FC = () => {
+const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signup' }) => {
   const [mode, setMode] = useState<Mode>('signup');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -46,8 +50,16 @@ const AuthPage: React.FC = () => {
   const [wasSubmitted, setWasSubmitted] = useState(false);
 
   const navigate = useNavigate();
+  const location = useLocation();
   const { setToken } = useContext(AuthContext);
 
+  useEffect(() => {
+    setMode(initialMode);
+    setErrors([]);
+    setApiError("");
+    setWasSubmitted(false);
+  }, [initialMode]);
+  
   const validate = () => {
     const errs: string[] = [];
     if (!emailRegex.test(email)) errs.push('Please enter a valid email address');
@@ -60,12 +72,6 @@ const AuthPage: React.FC = () => {
     }
     return errs;
   };
-
-  useEffect(() => {
-    setErrors([]);
-    setApiError('');
-    setWasSubmitted(false);
-  }, [mode]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -87,7 +93,8 @@ const AuthPage: React.FC = () => {
 
       localStorage.setItem('access_token', data.access_token);
       setToken(data.access_token);
-      navigate('/dashboard');
+      const next = new URLSearchParams(location.search).get('next') || '/dashboard';
+      navigate(next, { replace: true });
     } catch (err: any) {
       setApiError(err.message);
     } finally {
@@ -101,7 +108,7 @@ const AuthPage: React.FC = () => {
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">Innoboard</CardTitle>
           <CardDescription className="text-center">
-            {mode === 'login' ? 'Sign in to your account' : 'Create a new account'}
+            {mode === "login" ? "Sign in to your account" : "Create a new account"}
           </CardDescription>
         </CardHeader>
 
@@ -182,7 +189,7 @@ const AuthPage: React.FC = () => {
                   className="w-full bg-black text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={isSubmitting}
                 >
-                  {isSubmitting ? 'Creating account...' : 'Create account'}
+                  {isSubmitting ? "Creating account..." : "Create account"}
                 </Button>
               </CardFooter>
             </form>
@@ -206,9 +213,6 @@ const AuthPage: React.FC = () => {
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <Label htmlFor="password-login">Password</Label>
-                    <Button variant="link" className="p-0 text-xs">
-                      Forgot password?
-                    </Button>
                   </div>
                   <Input
                     id="password-login"
@@ -244,7 +248,7 @@ const AuthPage: React.FC = () => {
                   className="w-full bg-black text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={isSubmitting}
                 >
-                  {isSubmitting ? 'Signing in...' : 'Sign in'}
+                  {isSubmitting ? "Signing in..." : "Sign in"}
                 </Button>
               </CardFooter>
             </form>

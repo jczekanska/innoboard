@@ -2,17 +2,19 @@ import time
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from collections import defaultdict
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import OperationalError
 from sqlalchemy import text
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List
 from . import models, schemas, crud, auth
 from .database import async_session, sync_engine, Base
 from .auth import oauth2_scheme, decode_token
-from .schemas import InvitationCreate, Invitation, CanvasData
-from .crud import create_invitation, get_invitations_for_user, get_canvas_data, save_canvas_data
+from .schemas import InvitationCreate, CanvasData
+from .schemas import Invitation as InvitationSchema
+from .crud import create_invitation, get_invitations_for_user, get_canvas_data, save_canvas_data, get_invitations_by_canvas, validate_token, accept_invitation
 
 Base.metadata.create_all(bind=sync_engine)
 
@@ -228,3 +230,38 @@ async def websocket_endpoint(websocket: WebSocket, canvas_id: int, token: str):
             await manager.broadcast(canvas_id, data)
     except WebSocketDisconnect:
         manager.disconnect(canvas_id, websocket)
+
+@app.get("/canvases/{canvas_id}/invitations", response_model=List[InvitationSchema])
+async def list_invites(canvas_id: int, db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
+    canvas = await crud.get_canvas(db, canvas_id)
+    if canvas.owner_id != current_user.id:
+        raise HTTPException(403)
+    invs = await get_invitations_by_canvas(db, canvas_id)
+    return invs
+
+class InvitationCreate(BaseModel):
+    expires_in: str  # "24h", "7d", "none"
+
+@app.post("/canvases/{canvas_id}/invitations", response_model=InvitationSchema)
+async def make_invite(canvas_id: int, payload: InvitationCreate, db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
+    canvas = await crud.get_canvas(db, canvas_id)
+    if canvas.owner_id != current_user.id:
+        raise HTTPException(403)
+    if payload.expires_in.endswith("h"):
+        delta = timedelta(hours=int(payload.expires_in[:-1]))
+    elif payload.expires_in.endswith("d"):
+        delta = timedelta(days=int(payload.expires_in[:-1]))
+    elif payload.expires_in == "none":
+        delta = None
+    else:
+        delta = timedelta(0)
+    inv = await create_invitation(db, canvas_id, None, delta)
+    return inv
+
+@app.get("/join/{token}")
+async def join_canvas(token: str, db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
+    inv = await validate_token(db, token)
+    if not inv:
+        raise HTTPException(404, "Invalid or expired invite")
+    await accept_invitation(db, token, current_user.email)
+    return {"canvas_id": inv.canvas_id}

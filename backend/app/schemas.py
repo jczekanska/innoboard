@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr, ConfigDict
 from datetime import datetime
-from typing import Dict
+from typing import Dict, Optional
 
 class UserCreate(BaseModel):
     email: EmailStr
@@ -34,7 +34,7 @@ class CanvasData(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class InvitationBase(BaseModel):
-    invitee_email: str
+    invitee_email: Optional[EmailStr] = None
 
 class InvitationCreate(InvitationBase):
     pass
@@ -43,5 +43,7 @@ class Invitation(InvitationBase):
     id: int
     canvas_id: int
     token: str
+    expires_at: Optional[datetime]
+    disabled: bool
 
     model_config = ConfigDict(from_attributes=True)

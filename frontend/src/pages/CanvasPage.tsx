@@ -9,6 +9,7 @@ import React, {
 import { useParams, useNavigate } from "react-router-dom";
 import { Rnd } from "react-rnd";
 import { AuthContext } from "../context/AuthContext";
+import { SharePanel } from "../components/ui/SharePanel";
 
 import {
   Card,
@@ -55,6 +56,7 @@ const CanvasPage: React.FC = () => {
   const [contentImage, setContentImage] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showSharePanel, setShowSharePanel] = useState(false);
 
   useEffect(() => {
     if (!token || !id) return;
@@ -212,16 +214,23 @@ const CanvasPage: React.FC = () => {
   return (
     <Card className="max-w-4xl mx-auto mt-10">
       <CardHeader className="flex items-center justify-between">
-        <CardTitle>{canvasInfo?.name}</CardTitle>
+        <div className="flex items-center space-x-4">
+          <CardTitle>{canvasInfo?.name}</CardTitle>
+          <Button size="sm" onClick={() => setShowSharePanel((v) => !v)}>
+            Share
+          </Button>
+        </div>
         <div className="flex space-x-2">
           <Button onClick={() => saveContent()}>Save</Button>
-          <Button variant="ghost" onClick={handleDashboard}>
+          <Button variant="ghost" onClick={() => handleDashboard()}>
             Dashboard
           </Button>
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-6">
+        {showSharePanel && <SharePanel canvasId={Number(id)} />}
+
         <div className="canvas-toolbar">
           <Input
             type="color"
@@ -261,7 +270,7 @@ const CanvasPage: React.FC = () => {
 
         <div className="canvas-frame">
           <div className="canvas-inner-frame">
-            <canvas ref={canvasRef} width={830} height={600} />
+            <canvas ref={canvasRef} width={1200} height={600} />
           </div>
 
           {texts.map((box) => (
@@ -282,8 +291,8 @@ const CanvasPage: React.FC = () => {
                   t.id === box.id
                     ? {
                         ...t,
-                        width: parseInt(ref.style.width),
-                        height: parseInt(ref.style.height),
+                        width: parseInt(ref.style.width, 10),
+                        height: parseInt(ref.style.height, 10),
                         x: d.x,
                         y: d.y,
                       }
@@ -313,13 +322,14 @@ const CanvasPage: React.FC = () => {
                 {selectedId === box.id && (
                   <button
                     className="delete-btn"
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       deleteBox(box.id);
                       setSelectedId(null);
                     }}
-                >
-                  ❌
-                </button>
+                  >
+                    ❌
+                  </button>
                 )}
               </div>
             </Rnd>
