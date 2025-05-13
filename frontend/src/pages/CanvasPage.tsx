@@ -52,6 +52,7 @@ const CanvasPage: React.FC = () => {
   const [size, setSize] = useState<number>(4);
   const [texts, setTexts] = useState<TextBox[]>([]);
   const [contentImage, setContentImage] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
 
   useEffect(() => {
     if (!token || !id) return;
@@ -80,6 +81,7 @@ const CanvasPage: React.FC = () => {
         }
       })
       .catch(console.error);
+    setIsDirty(false);
   }, [id, token]);
 
   useEffect(() => {
@@ -107,6 +109,7 @@ const CanvasPage: React.FC = () => {
         ctx.lineTo(x, y);
         ctx.stroke();
       }
+      setIsDirty(true);
     };
     ws.onerror = console.error;
     ws.onclose = () => console.log("WS closed");
@@ -152,6 +155,7 @@ const CanvasPage: React.FC = () => {
       ctx.stroke();
       const evt: DrawEvent = { x, y, mode, color, size };
       wsRef.current?.send(JSON.stringify(evt));
+      setIsDirty(true);
     };
 
     const handleUp = () => {
@@ -182,6 +186,7 @@ const CanvasPage: React.FC = () => {
       body: JSON.stringify({ content: { image, texts: newTexts } }),
     }).catch(console.error);
     setContentImage(image);
+    setIsDirty(false);
   };
 
   const deleteBox = (boxId: string) => {
@@ -190,13 +195,20 @@ const CanvasPage: React.FC = () => {
     saveContent(nt);
   };
 
+  const handleDashboard = () => {
+    if (isDirty && !window.confirm("You have unsaved changes. Discard and exit?")) {
+      return;
+    }
+    navigate("/dashboard");
+  };
+
   return (
     <Card className="max-w-4xl mx-auto mt-10">
       <CardHeader className="flex items-center justify-between">
         <CardTitle>{canvasInfo?.name}</CardTitle>
         <div className="flex space-x-2">
           <Button onClick={() => saveContent()}>Save</Button>
-          <Button variant="ghost" onClick={() => navigate("/dashboard")}>
+          <Button variant="ghost" onClick={handleDashboard}>
             Dashboard
           </Button>
         </div>
@@ -256,7 +268,7 @@ const CanvasPage: React.FC = () => {
                   t.id === box.id ? { ...t, x: d.x, y: d.y } : t
                 );
                 setTexts(nt);
-                saveContent(nt);
+                setIsDirty(true);
               }}
               onResizeStop={(_, __, ref, ___, d) => {
                 const nt = texts.map((t) =>
@@ -271,7 +283,7 @@ const CanvasPage: React.FC = () => {
                     : t
                 );
                 setTexts(nt);
-                saveContent(nt);
+                setIsDirty(true);
               }}
             >
               <div className="text-box">
@@ -285,6 +297,7 @@ const CanvasPage: React.FC = () => {
                         t.id === box.id ? { ...t, text: newText } : t
                       )
                     );
+                    setIsDirty(true);
                   }}
                   onBlur={() => saveContent()}
                   style={{ color }}
