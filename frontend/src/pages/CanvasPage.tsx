@@ -36,6 +36,7 @@ interface TextBox {
   width: number;
   height: number;
   text: string;
+  color: string;
 }
 
 const CanvasPage: React.FC = () => {
@@ -53,6 +54,7 @@ const CanvasPage: React.FC = () => {
   const [texts, setTexts] = useState<TextBox[]>([]);
   const [contentImage, setContentImage] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token || !id) return;
@@ -82,6 +84,7 @@ const CanvasPage: React.FC = () => {
       })
       .catch(console.error);
     setIsDirty(false);
+    setSelectedId(null);
   }, [id, token]);
 
   useEffect(() => {
@@ -122,6 +125,9 @@ const CanvasPage: React.FC = () => {
     const ctx = canvas.getContext("2d")!;
     let drawing = false;
 
+    const clearSelection = () => setSelectedId(null);
+    canvas.addEventListener("mousedown", clearSelection);
+
     const toCoords = (e: MouseEvent) => {
       const r = canvas.getBoundingClientRect();
       return { x: e.clientX - r.left, y: e.clientY - r.top };
@@ -133,7 +139,7 @@ const CanvasPage: React.FC = () => {
         const input = prompt("Enter text (max 2000 chars):")?.slice(0, 2000);
         if (!input) return;
         const id = crypto.randomUUID();
-        const box: TextBox = { id, x, y, width: 150, height: 50, text: input };
+        const box: TextBox = { id, x, y, width: 150, height: 50, text: input, color };
         const nt = [...texts, box];
         setTexts(nt);
         saveContent(nt);
@@ -168,6 +174,7 @@ const CanvasPage: React.FC = () => {
     canvas.addEventListener("mouseup", handleUp as any);
     canvas.addEventListener("mouseleave", handleUp as any);
     return () => {
+      canvas.removeEventListener("mousedown", clearSelection);
       canvas.removeEventListener("mousedown", handleDown as any);
       canvas.removeEventListener("mousemove", handleMove as any);
       canvas.removeEventListener("mouseup", handleUp as any);
@@ -285,6 +292,7 @@ const CanvasPage: React.FC = () => {
                 setTexts(nt);
                 setIsDirty(true);
               }}
+              onClick={() => setSelectedId(box.id)}
             >
               <div className="text-box">
                 <textarea
@@ -300,14 +308,19 @@ const CanvasPage: React.FC = () => {
                     setIsDirty(true);
                   }}
                   onBlur={() => saveContent()}
-                  style={{ color }}
+                  style={{ color: box.color }}
                 />
-                <button
-                  className="delete-btn"
-                  onClick={() => deleteBox(box.id)}
+                {selectedId === box.id && (
+                  <button
+                    className="delete-btn"
+                    onClick={() => {
+                      deleteBox(box.id);
+                      setSelectedId(null);
+                    }}
                 >
                   ❌
                 </button>
+                )}
               </div>
             </Rnd>
           ))}
