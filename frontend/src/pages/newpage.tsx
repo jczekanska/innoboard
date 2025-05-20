@@ -1,6 +1,10 @@
-import { ArrowLeft, Eraser, FileAudio, Image, LucideIcon, MapPin, MousePointer, PencilLine, Share2, Type } from "lucide-react"
+import { ArrowLeft, Eraser, FileAudio, Image, LucideIcon, MapPin, Minus, MousePointer, PencilLine, Plus, Share2, Type } from "lucide-react"
+import { useState } from "react"
 
 const CanvasPage: React.FC = () => {
+
+    const [zoom, setZoom] = useState(100)
+
     return <div className="flex bg-gray-300 w-screen h-screen flex-col">
         {/* Top Bar */}
         <div className="flex absolute items-center w-screen h-13 bg-white px-3 border-b-1">
@@ -26,22 +30,38 @@ const CanvasPage: React.FC = () => {
         </div>
         <div className="flex h-screen">
             {/* Toolbar */}
-            <div className="flex flex-col w-14 bg-white items-center gap-3 pt-16 border-e-1">
-                <ToolsButton icon={MousePointer} />
-                <ToolsButton icon={PencilLine} />
-                <ToolsButton icon={Type} />
-                <ToolsButton icon={Eraser} />
-                <ToolsButton icon={Image} />
-                <ToolsButton icon={FileAudio} />
-                <ToolsButton icon={MapPin} />
+            <div className="flex flex-col w-15 bg-white pt-16 pb-3 border-e-1">
+                <div className="flex flex-col items-center gap-3">
+                    <ToolsButton icon={MousePointer} />
+                    <ToolsButton icon={PencilLine} />
+                    <ToolsButton icon={Type} />
+                    <ToolsButton icon={Eraser} />
+                    <ToolsButton icon={Image} />
+                    <ToolsButton icon={FileAudio} />
+                    <ToolsButton icon={MapPin} />
+                </div>
+                {/* Zoom Functionality (might cause problems: in this case, remove it) */}
+                <div className="flex flex-col items-center gap-3 h-full justify-end">
+                    <ToolsButton icon={Minus} onClick={() => setZoom(zoom > 25 ? zoom - 25 : zoom)} />
+                    <span className="text-xs">{zoom}%</span>
+                    <ToolsButton icon={Plus} onClick={() => setZoom(zoom < 350 ? zoom + 25 : zoom)} />
+                </div>
             </div>
             {/* Canvas Area */}
             <div className="w-full bg-red-100 pt-23 ps-10 overflow-auto grid place-items-center">
                 {/* Canvas itself */}
-                <div className="h-50 w-50 mb-10 me-10 bg-white scale-100"></div>
+                <div
+
+                    style={{ scale: zoom + "%" }}
+                    className="h-50 w-50 mb-10 me-10 bg-white duration-100"></div>
             </div>
             {/* Additional Tools */}
             <div className="flex flex-col w-80 bg-white items-center gap-3 pt-3 border-s-1">
+                {/* Text */}
+
+                {/* Colors */}
+
+                {/* Users */}
 
             </div>
         </div>
