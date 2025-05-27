@@ -60,7 +60,7 @@ const CanvasPage: React.FC = () => {
             .catch(() => navigate("/dashboard"));
     }, [id, token, navigate]);
 
-    // Interface functionalities
+    // ----- Interface functionalities -----
 
     const [mode, setMode] = useState<Mode>("select")
 
@@ -97,72 +97,110 @@ const CanvasPage: React.FC = () => {
 
         if (isNaN(value)) return;
 
-        // Clamp value within allowed range
+        // Clamps value within allowed range
         if (value < MIN_FONT_SIZE) value = MIN_FONT_SIZE;
         if (value > MAX_FONT_SIZE) value = MAX_FONT_SIZE;
 
         setFontSize(value)
     };
 
-    // Canvas Functionalities
+    // ----- Canvas Functionalities ----- //
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     // const socketRef = useRef<WebSocket>();
 
+    // Keeps track of the last cursor position to avoid unexpected jumps
+    // when the pointer leaves and re-enters the canvas during drawing.
+    const lastPoint = useRef<{ x: number; y: number } | null>(null);
+
+    const configRef = useRef({ mode, color, size });
+
+    useEffect(() => {
+        configRef.current = { mode, color, size };
+    }, [mode, color, size]);
+
+    // Converts mouse event coordinates to canvas-relative coordinates,
+    // accounting for canvas position and current zoom level.
+    const getCanvasXY = (canvas: HTMLCanvasElement, e: MouseEvent, zoom: number) => {
+        const r = canvas.getBoundingClientRect();
+        return {
+            x: (e.clientX - r.left) * (100 / zoom),
+            y: (e.clientY - r.top) * (100 / zoom),
+        };
+    };
+
+    // // This section sets up mouse event handlers for canvas interaction
+
+    const handleMouseDown = (
+        canvas: HTMLCanvasElement,
+        ctx: CanvasRenderingContext2D,
+        zoom: number
+    ) => (e: MouseEvent) => {
+        lastPoint.current = getCanvasXY(canvas, e, zoom);
+        // Handling text comes here in Martyna's original code
+        ctx.beginPath();
+        ctx.moveTo(lastPoint.current.x, lastPoint.current.y);
+    };
+
+    const handleMouseUp = (ctx: CanvasRenderingContext2D) => () => {
+        ctx.closePath();
+        lastPoint.current = null;
+    };
+
+    const handleMouseMove = (
+        canvas: HTMLCanvasElement,
+        ctx: CanvasRenderingContext2D,
+        zoom: number
+    ) => (e: MouseEvent) => {
+        if (e.buttons !== 1) return; // Only proceed if the left mouse button is currently pressed
+
+        const { mode, color, size } = configRef.current;
+        if (mode !== "draw" && mode !== "erase") return;
+
+        const current = getCanvasXY(canvas, e, zoom);
+        if (!lastPoint.current) return; // Prevents drawing glitches when cursor re-enters canvas
+
+        ctx.lineWidth = size;
+        ctx.strokeStyle = mode === "erase" ? "#ffffff" : color;
+        ctx.globalCompositeOperation = mode === "erase" ? "destination-out" : "source-over";
+
+        ctx.lineTo(current.x, current.y);
+        ctx.stroke();
+
+        lastPoint.current = current;
+    };
+
+    // Handles all canvas interaction
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
-        const canvasContext = canvas.getContext("2d")!;
 
-        const getCanvasXY = (e: MouseEvent) => {
-            const r = canvas.getBoundingClientRect();
-            return {
-                x: (e.clientX - r.left) * (100 / zoom),
-                y: (e.clientY - r.top) * (100 / zoom),
-            };
-        };
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
 
-        const handleDown = (e: MouseEvent) => {
-            const { x, y } = getCanvasXY(e);
-            // handling text comes here in original code
-            // ...
-            // ...
-            canvasContext.beginPath();
-            canvasContext.moveTo(x, y);
+        // Lists event listeners & their callback functions
+        const listeners: [keyof DocumentEventMap, EventListener][] = [
+            ["mouseenter", handleMouseDown(canvas, ctx, zoom)],
+            ["mousedown", handleMouseDown(canvas, ctx, zoom)],
+            ["mousemove", handleMouseMove(canvas, ctx, zoom)],
+            ["mouseup", handleMouseUp(ctx)],
+            ["mouseleave", handleMouseUp(ctx)],
+        ];
+
+        // Applies all event listeners on mount
+        for (const [event, handler] of listeners) {
+            canvas.addEventListener(event, handler);
         }
 
-        const handleMove = (e: MouseEvent) => {
-            if (e.buttons !== 1 || (mode !== "draw" && mode !== "erase")) return; // Only draw if left button is pressed
-            const { x, y } = getCanvasXY(e);
-
-            canvasContext.lineWidth = size;
-            canvasContext.strokeStyle = mode === "erase" ? "#ffffff" : color;
-            canvasContext.globalCompositeOperation =
-                mode === "erase" ? "destination-out" : "source-over";
-
-            canvasContext.lineTo(x, y);
-            canvasContext.stroke();
-        }
-
-        const handleUp = () => {
-            canvasContext.closePath()
-        }
-
-        canvas.addEventListener("mouseup", handleUp);
-        canvas.addEventListener("mouseleave", handleUp);
-        canvas.addEventListener("mousedown", handleDown);
-        canvas.addEventListener("mousemove", handleMove);
-
+        // Removes all event listeners on unmount
         return () => {
-            canvas.removeEventListener("mouseup", handleUp);
-            canvas.removeEventListener("mouseleave", handleUp);
-            canvas.removeEventListener("mousedown", handleDown);
-            canvas.removeEventListener("mousemove", handleMove);
-        }
+            for (const [event, handler] of listeners) {
+                canvas.removeEventListener(event, handler);
+            }
+        };
+    }, [canvasRef.current, zoom]);
 
-    }, [mode, color, size, canvasRef.current])
-
-    // Component itself
+    // ----- Component itself ----- //
 
     return <div className="flex bg-gray-300 w-screen h-screen flex-col">
         {/* Top Bar */}
