@@ -1,5 +1,4 @@
-import * as React from "react"
-import { useState } from "react"
+import React, { useState, useRef, useEffect, useContext } from "react"
 
 // external components
 import { HexColorPicker } from "react-colorful"
@@ -9,40 +8,57 @@ import { ArrowLeft, Eraser, FileAudio, Image, LucideIcon, MapPin, Minus, MousePo
 // components
 import Slider from "@/components/canvasPage/Slider"
 import ToolsButton from "@/components/canvasPage/ToolsButton"
+import { AuthContext } from "@/context/AuthContext"
+import { useNavigate, useParams } from "react-router-dom"
+
+interface DrawEvent {
+    x: number;
+    y: number;
+    mode: Mode;
+    color: string;
+    size: number;
+    text?: string;
+}
+interface TextBox {
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    text: string;
+}
+
+type Mode = "select" | "draw" | "text" | "erase" | "image" | "audio" | "location"
+
+const TOOLS: Record<Mode, LucideIcon> = {
+    select: MousePointer,
+    draw: PencilLine,
+    text: Type,
+    erase: Eraser,
+    image: Image,
+    audio: FileAudio,
+    location: MapPin
+}
 
 const CanvasPage: React.FC = () => {
 
-    // Canvas Functionalities
+    // General
+    const navigate = useNavigate();
 
-    interface DrawEvent {
-        x: number;
-        y: number;
-        mode: Mode;
-        color: string;
-        size: number;
-        text?: string;
-    }
-    interface TextBox {
-        id: string;
-        x: number;
-        y: number;
-        width: number;
-        height: number;
-        text: string;
-    }
+    // Authorization
+    const { token } = useContext(AuthContext);
+    const { id } = useParams<{ id: string }>();
+    const [canvasInfo, setCanvasInfo] = useState<{ name: string } | null>(null);
 
-    type Mode = "select" | "draw" | "text" | "erase" | "image" | "audio" | "location"
-
-    const TOOLS: Record<Mode, LucideIcon> = {
-        select: MousePointer,
-        draw: PencilLine,
-        text: Type,
-        erase: Eraser,
-        image: Image,
-        audio: FileAudio,
-        location: MapPin
-    }
-
+    useEffect(() => {
+        if (!token || !id) return;
+        fetch(`/api/canvases/${id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+        })
+            .then((r) => (r.ok ? r.json() : Promise.reject()))
+            .then(setCanvasInfo)
+            .catch(() => navigate("/dashboard"));
+    }, [id, token, navigate]);
 
     // Interface functionalities
 
@@ -60,6 +76,8 @@ const CanvasPage: React.FC = () => {
 
     const MIN_FONT_SIZE = 8;
     const MAX_FONT_SIZE = 144;
+
+    // // This section sets up the intended behavior for the "Font Size" field
 
     const allowedKeys = [
         "Backspace", "Tab", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Delete", "Enter",
@@ -86,6 +104,65 @@ const CanvasPage: React.FC = () => {
         setFontSize(value)
     };
 
+    // Canvas Functionalities
+
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    // const socketRef = useRef<WebSocket>();
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const canvasContext = canvas.getContext("2d")!;
+
+        const getCanvasXY = (e: MouseEvent) => {
+            const r = canvas.getBoundingClientRect();
+            return {
+                x: (e.clientX - r.left) * (100 / zoom),
+                y: (e.clientY - r.top) * (100 / zoom),
+            };
+        };
+
+        const handleDown = (e: MouseEvent) => {
+            const { x, y } = getCanvasXY(e);
+            // handling text comes here in original code
+            // ...
+            // ...
+            canvasContext.beginPath();
+            canvasContext.moveTo(x, y);
+        }
+
+        const handleMove = (e: MouseEvent) => {
+            if (e.buttons !== 1 || (mode !== "draw" && mode !== "erase")) return; // Only draw if left button is pressed
+            const { x, y } = getCanvasXY(e);
+
+            canvasContext.lineWidth = size;
+            canvasContext.strokeStyle = mode === "erase" ? "#ffffff" : color;
+            canvasContext.globalCompositeOperation =
+                mode === "erase" ? "destination-out" : "source-over";
+
+            canvasContext.lineTo(x, y);
+            canvasContext.stroke();
+        }
+
+        const handleUp = () => {
+            canvasContext.closePath()
+        }
+
+        canvas.addEventListener("mouseup", handleUp);
+        canvas.addEventListener("mouseleave", handleUp);
+        canvas.addEventListener("mousedown", handleDown);
+        canvas.addEventListener("mousemove", handleMove);
+
+        return () => {
+            canvas.removeEventListener("mouseup", handleUp);
+            canvas.removeEventListener("mouseleave", handleUp);
+            canvas.removeEventListener("mousedown", handleDown);
+            canvas.removeEventListener("mousemove", handleMove);
+        }
+
+    }, [mode, color, size, canvasRef.current])
+
+    // Component itself
 
     return <div className="flex bg-gray-300 w-screen h-screen flex-col">
         {/* Top Bar */}
@@ -131,11 +208,12 @@ const CanvasPage: React.FC = () => {
                 </section>
             </aside>
             {/* Canvas Area */}
-            <main className="w-full bg-red-100 pt-23 ps-10 overflow-auto grid place-items-center">
+            <main className="w-full bg-gray-300 pt-23 ps-10 overflow-auto grid place-items-center">
                 {/* Canvas itself */}
                 <canvas
+                    ref={canvasRef}
                     style={{ scale: zoom + "%" }}
-                    className="h-50 w-50 mb-10 me-10 bg-white duration-100"
+                    className="mb-10 me-10 bg-white duration-100"
                 />
             </main>
             {/* Additional Tools Panel */}
