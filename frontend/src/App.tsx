@@ -2,7 +2,7 @@ import React, { useContext } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import AuthPage from './pages/AuthPage';
 import Dashboard from './pages/Dashboard';
-import CanvasPage from './pages/newpage';
+import CanvasPage from './pages/CanvasPage';
 import { AuthContext } from './context/AuthContext';
 import './index.css';
 import { CanvasSettingsProvider } from './context/CanvasSettingsContext';
