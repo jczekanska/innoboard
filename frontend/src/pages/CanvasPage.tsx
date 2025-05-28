@@ -1,307 +1,175 @@
-import React, {
-  useRef,
-  useState,
-  useEffect,
-  MouseEvent,
-  ChangeEvent,
-  useContext,
-} from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { Rnd } from "react-rnd";
-import { AuthContext } from "../context/AuthContext";
+import React, { useState, useRef, useEffect, useContext } from "react"
+import { AuthContext } from "@/context/AuthContext"
+import { useNavigate, useParams } from "react-router-dom"
+import Header from "@/components/canvasPage/Header"
+import { useCanvasSettings } from "@/context/CanvasSettingsContext"
+import Toolbar from "@/components/canvasPage/Toolbar"
+import ToolsPanel from "@/components/canvasPage/ToolsPanel"
 
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-  CardFooter,
-} from "../components/ui/card";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-
-type Mode = "draw" | "erase" | "text";
 interface DrawEvent {
-  x: number;
-  y: number;
-  mode: Mode;
-  color: string;
-  size: number;
-  text?: string;
+    x: number;
+    y: number;
+    mode: Mode;
+    color: string;
+    size: number;
+    text?: string;
 }
 interface TextBox {
-  id: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  text: string;
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    text: string;
 }
 
+export type Mode = "select" | "draw" | "text" | "erase" | "image" | "audio" | "location"
+
 const CanvasPage: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  const { token } = useContext(AuthContext);
 
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const wsRef = useRef<WebSocket>();
+    // General
+    const navigate = useNavigate();
 
-  const [canvasInfo, setCanvasInfo] = useState<{ name: string } | null>(null);
-  const [mode, setMode] = useState<Mode>("draw");
-  const [color, setColor] = useState<string>("#000000");
-  const [size, setSize] = useState<number>(4);
-  const [texts, setTexts] = useState<TextBox[]>([]);
-  const [contentImage, setContentImage] = useState<string | null>(null);
+    // Authorization
+    const { token } = useContext(AuthContext);
+    const { id } = useParams<{ id: string }>();
+    const [canvasInfo, setCanvasInfo] = useState<{ name: string } | null>(null);
 
-  useEffect(() => {
-    if (!token || !id) return;
-    fetch(`/api/canvases/${id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then(setCanvasInfo)
-      .catch(() => navigate("/dashboard"));
-  }, [id, token, navigate]);
+    useEffect(() => {
+        if (!token || !id) return;
+        fetch(`/api/canvases/${id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+        })
+            .then((r) => (r.ok ? r.json() : Promise.reject()))
+            .then(setCanvasInfo)
+            .catch(() => navigate("/dashboard"));
+    }, [id, token, navigate]);
 
-  useEffect(() => {
-    if (!token || !id) return;
-    fetch(`/api/canvases/${id}/data`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then(({ content }) => {
-        setContentImage(content.image || null);
-        setTexts(content.texts || []);
-        if (content.image && canvasRef.current) {
-          const ctx = canvasRef.current.getContext("2d")!;
-          const img = new Image();
-          img.onload = () => ctx.drawImage(img, 0, 0);
-          img.src = content.image;
-        }
-      })
-      .catch(console.error);
-  }, [id, token]);
+    // ----- Interface functionalities -----
 
-  useEffect(() => {
-    if (!token || !id) return;
-    const ws = new WebSocket(
-      `ws://localhost:8000/ws/canvas/${id}?token=${token}`
-    );
-    wsRef.current = ws;
-    ws.onmessage = ({ data }) => {
-      const evt = JSON.parse(data) as DrawEvent;
-      const { x, y, mode, color: c, size: s, text } = evt;
-      const ctx = canvasRef.current?.getContext("2d");
-      if (!ctx) return;
+    const { state, dispatch } = useCanvasSettings()
 
-      ctx.lineWidth = s;
-      ctx.strokeStyle = c;
-      ctx.fillStyle = c;
-      ctx.globalCompositeOperation =
-        mode === "erase" ? "destination-out" : "source-over";
+    // ----- Canvas Functionalities ----- //
 
-      if (mode === "text" && text) {
-        ctx.font = `${s * 4}px sans-serif`;
-        ctx.fillText(text, x, y);
-      } else if (mode !== "text") {
-        ctx.lineTo(x, y);
+    const [texts, setTexts] = useState<TextBox[]>([]);
+
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    // const socketRef = useRef<WebSocket>();
+
+    // Keeps track of the last cursor position to avoid unexpected jumps
+    // when the pointer leaves and re-enters the canvas during drawing.
+    const lastPoint = useRef<{ x: number; y: number } | null>(null);
+
+    // Converts mouse event coordinates to canvas-relative coordinates,
+    // accounting for canvas position and current zoom level.
+    const getCanvasXY = (canvas: HTMLCanvasElement, e: MouseEvent, zoom: number) => {
+        const r = canvas.getBoundingClientRect();
+        return {
+            x: (e.clientX - r.left) * (100 / zoom),
+            y: (e.clientY - r.top) * (100 / zoom),
+        };
+    };
+
+    // // This section sets up mouse event handlers for canvas interaction
+
+    // I'll add this for the text boxes
+    const handleMouseClick = () => {
+        // if (mode !== "text") return
+    }
+
+    const handleMouseDown = (
+        canvas: HTMLCanvasElement,
+        ctx: CanvasRenderingContext2D,
+        zoom: number
+    ) => (e: MouseEvent) => {
+        lastPoint.current = getCanvasXY(canvas, e, zoom);
+        // Handling text comes here in Martyna's original code
+        ctx.beginPath();
+        ctx.moveTo(lastPoint.current.x, lastPoint.current.y);
+    };
+
+    const handleMouseUp = (ctx: CanvasRenderingContext2D) => () => {
+        ctx.closePath();
+        lastPoint.current = null;
+    };
+
+    const handleMouseMove = (
+        canvas: HTMLCanvasElement,
+        ctx: CanvasRenderingContext2D,
+        zoom: number
+    ) => (e: MouseEvent) => {
+        if (e.buttons !== 1) return; // Only proceed if the left mouse button is currently pressed
+
+        if (state.mode !== "draw" && state.mode !== "erase") return;
+
+        const current = getCanvasXY(canvas, e, zoom);
+        if (!lastPoint.current) return; // Prevents drawing glitches when cursor re-enters canvas
+
+        ctx.lineWidth = state.size;
+        ctx.strokeStyle = state.mode === "erase" ? "#ffffff" : state.color;
+        ctx.globalCompositeOperation = state.mode === "erase" ? "destination-out" : "source-over";
+
+        ctx.lineTo(current.x, current.y);
         ctx.stroke();
-      }
-    };
-    ws.onerror = console.error;
-    ws.onclose = () => console.log("WS closed");
-    return () => ws.close();
-  }, [id, token]);
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
-    let drawing = false;
-
-    const toCoords = (e: MouseEvent) => {
-      const r = canvas.getBoundingClientRect();
-      return { x: e.clientX - r.left, y: e.clientY - r.top };
+        lastPoint.current = current;
     };
 
-    const handleDown = (e: MouseEvent) => {
-      const { x, y } = toCoords(e);
-      if (mode === "text") {
-        const input = prompt("Enter text (max 2000 chars):")?.slice(0, 2000);
-        if (!input) return;
-        const id = crypto.randomUUID();
-        const box: TextBox = { id, x, y, width: 150, height: 50, text: input };
-        const nt = [...texts, box];
-        setTexts(nt);
-        saveContent(nt);
-        return;
-      }
-      drawing = true;
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-    };
+    // Handles all canvas interaction
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
 
-    const handleMove = (e: MouseEvent) => {
-      if (!drawing) return;
-      const { x, y } = toCoords(e);
-      ctx.lineWidth = size;
-      ctx.strokeStyle = mode === "erase" ? "#ffffff" : color;
-      ctx.globalCompositeOperation =
-        mode === "erase" ? "destination-out" : "source-over";
-      ctx.lineTo(x, y);
-      ctx.stroke();
-      const evt: DrawEvent = { x, y, mode, color, size };
-      wsRef.current?.send(JSON.stringify(evt));
-    };
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
 
-    const handleUp = () => {
-      drawing = false;
-      ctx.closePath();
-    };
+        // Lists event listeners & their callback functions
+        const listeners: [keyof DocumentEventMap, EventListener][] = [
+            ["mouseenter", handleMouseDown(canvas, ctx, state.zoom)],
+            ["mousedown", handleMouseDown(canvas, ctx, state.zoom)],
+            ["mousemove", handleMouseMove(canvas, ctx, state.zoom)],
+            ["mouseup", handleMouseUp(ctx)],
+            ["mouseleave", handleMouseUp(ctx)],
+        ];
 
-    canvas.addEventListener("mousedown", handleDown as any);
-    canvas.addEventListener("mousemove", handleMove as any);
-    canvas.addEventListener("mouseup", handleUp as any);
-    canvas.addEventListener("mouseleave", handleUp as any);
-    return () => {
-      canvas.removeEventListener("mousedown", handleDown as any);
-      canvas.removeEventListener("mousemove", handleMove as any);
-      canvas.removeEventListener("mouseup", handleUp as any);
-      canvas.removeEventListener("mouseleave", handleUp as any);
-    };
-  }, [mode, color, size, texts]);
+        // Applies all event listeners on mount
+        for (const [event, handler] of listeners) {
+            canvas.addEventListener(event, handler);
+        }
 
-  const saveContent = (newTexts: TextBox[] = texts) => {
-    const image = canvasRef.current?.toDataURL() || contentImage;
-    fetch(`/api/canvases/${id}/data`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ content: { image, texts: newTexts } }),
-    }).catch(console.error);
-    setContentImage(image);
-  };
-
-  const deleteBox = (boxId: string) => {
-    const nt = texts.filter((t) => t.id !== boxId);
-    setTexts(nt);
-    saveContent(nt);
-  };
-
-  return (
-    <Card className="max-w-4xl mx-auto mt-10">
-      <CardHeader className="flex items-center justify-between">
-        <CardTitle>{canvasInfo?.name}</CardTitle>
-        <div className="flex space-x-2">
-          <Button onClick={() => saveContent()}>Save</Button>
-          <Button variant="ghost" onClick={() => navigate("/dashboard")}>
-            Dashboard
-          </Button>
-        </div>
-      </CardHeader>
-
-      <CardContent className="space-y-4">
-        <div className="canvas-toolbar">
-          <Input
-            type="color"
-            value={color}
-            onChange={(e: ChangeEvent<HTMLInputElement>) =>
-              setColor(e.target.value)
+        // Removes all event listeners on unmount
+        return () => {
+            for (const [event, handler] of listeners) {
+                canvas.removeEventListener(event, handler);
             }
-          />
-          <Input
-            type="range"
-            min={1}
-            max={50}
-            value={size}
-            onChange={(e: ChangeEvent<HTMLInputElement>) =>
-              setSize(Number(e.target.value))
-            }
-          />
-          <Button
-            variant={mode === "draw" ? "default" : "outline"}
-            onClick={() => setMode("draw")}
-          >
-            ✏️ Draw
-          </Button>
-          <Button
-            variant={mode === "erase" ? "default" : "outline"}
-            onClick={() => setMode("erase")}
-          >
-            🧽 Erase
-          </Button>
-          <Button
-            variant={mode === "text" ? "default" : "outline"}
-            onClick={() => setMode("text")}
-          >
-            🔤 Text
-          </Button>
+        };
+    }, [canvasRef.current, state.zoom]);
+
+    // ----- Component itself ----- //
+
+    return (
+
+        <div className="flex bg-gray-300 w-screen h-screen flex-col">
+            {/* Top Bar */}
+            <Header />
+            <div className="flex h-screen">
+                {/* Toolbar */}
+                <Toolbar />
+                {/* Canvas Area */}
+                <main className="w-full bg-gray-300 pt-23 ps-10 overflow-auto grid place-items-center">
+                    {/* Canvas itself */}
+                    <canvas
+                        ref={canvasRef}
+                        style={{ scale: state.zoom + "%" }}
+                        className="mb-10 me-10 bg-white duration-100"
+                    />
+                </main>
+                {/* Additional Tools Panel */}
+                <ToolsPanel />
+            </div>
         </div>
 
-        <div className="canvas-frame">
-          <div className="canvas-inner-frame">
-            <canvas ref={canvasRef} width={830} height={600} />
-          </div>
+    )
+}
 
-          {texts.map((box) => (
-            <Rnd
-              key={box.id}
-              size={{ width: box.width, height: box.height }}
-              position={{ x: box.x, y: box.y }}
-              bounds="parent"
-              onDragStop={(_, d) => {
-                const nt = texts.map((t) =>
-                  t.id === box.id ? { ...t, x: d.x, y: d.y } : t
-                );
-                setTexts(nt);
-                saveContent(nt);
-              }}
-              onResizeStop={(_, __, ref, ___, d) => {
-                const nt = texts.map((t) =>
-                  t.id === box.id
-                    ? {
-                        ...t,
-                        width: parseInt(ref.style.width),
-                        height: parseInt(ref.style.height),
-                        x: d.x,
-                        y: d.y,
-                      }
-                    : t
-                );
-                setTexts(nt);
-                saveContent(nt);
-              }}
-            >
-              <div className="text-box">
-                <textarea
-                  value={box.text}
-                  maxLength={2000}
-                  onChange={(e) => {
-                    const newText = e.target.value.slice(0, 2000);
-                    setTexts((ts) =>
-                      ts.map((t) =>
-                        t.id === box.id ? { ...t, text: newText } : t
-                      )
-                    );
-                  }}
-                  onBlur={() => saveContent()}
-                  style={{ color }}
-                />
-                <button
-                  className="delete-btn"
-                  onClick={() => deleteBox(box.id)}
-                >
-                  ❌
-                </button>
-              </div>
-            </Rnd>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  );
-};
-
-export default CanvasPage;
+export default CanvasPage
