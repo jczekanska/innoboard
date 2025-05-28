@@ -2,9 +2,10 @@ import React, { useContext } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import AuthPage from './pages/AuthPage';
 import Dashboard from './pages/Dashboard';
-import CanvasPage from './pages/CanvasPage';
+import CanvasPage from './pages/newpage';
 import { AuthContext } from './context/AuthContext';
-import './index.css';  
+import './index.css';
+import { CanvasSettingsProvider } from './context/CanvasSettingsContext';
 
 const App: React.FC = () => {
   const { token } = useContext(AuthContext);
@@ -19,8 +20,13 @@ const App: React.FC = () => {
         element={token ? <Dashboard /> : <Navigate to="/" replace />}
       />
       <Route
-        path="/canvas/:id"
-        element={token ? <CanvasPage /> : <Navigate to="/" replace />}
+        path="/canvas"
+        element={
+          <CanvasSettingsProvider>
+            <CanvasPage />
+          </CanvasSettingsProvider>
+        }
+      // element={token ? <CanvasPage /> : <Navigate to="/" replace />}
       />
     </Routes>
   );
