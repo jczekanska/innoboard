@@ -48,6 +48,7 @@ const CanvasPage: React.FC = () => {
     // ----- Interface functionalities -----
 
     const { state, dispatch } = useCanvasSettings()
+    console.log(state)
 
     // ----- Canvas Functionalities ----- //
 
@@ -143,7 +144,7 @@ const CanvasPage: React.FC = () => {
                 canvas.removeEventListener(event, handler);
             }
         };
-    }, [canvasRef.current, state.zoom]);
+    }, [state.mode]);
 
     // ----- Component itself ----- //
 
