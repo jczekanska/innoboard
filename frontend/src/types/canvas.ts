@@ -7,4 +7,4 @@ export type CanvasObject =
 //   | { id: string; type: "stroke"; points: Point[]; color: string; size: number }
   | { id: string; type: "image"; x: number; y: number; width: number; height: number; src: string }
   | { id: string; type: "audio"; x: number; y: number; width: number; height: number; url: string }
-  | { id: string; type: "location"; x: number; y: number; label: string }
+  | { id: string; type: "location"; x: number; y: number; width: number; height: number; label: string }

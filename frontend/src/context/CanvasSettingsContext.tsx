@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useReducer } from "react"
-import type { Mode } from "@/types/canvas"
+
+export type Mode = "select" | "draw" | "text" | "erase" | "image" | "audio" | "location"
 
 interface CanvasSettingsState {
     mode: Mode

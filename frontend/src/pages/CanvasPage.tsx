@@ -2,14 +2,16 @@ import React, { useState, useRef, useEffect, useContext } from "react"
 import { AuthContext } from "@/context/AuthContext"
 import { useNavigate, useParams } from "react-router-dom"
 import Header from "@/components/canvasPage/Header"
-import { useCanvasSettings } from "@/context/CanvasSettingsContext"
+import { Mode, useCanvasSettings } from "@/context/CanvasSettingsContext"
 import Toolbar from "@/components/canvasPage/Toolbar"
 import ToolsPanel from "@/components/canvasPage/ToolsPanel"
+import { CanvasObject } from "@/types/canvas"
+import { OverlayObject } from "@/components/canvasPage/OverlayObject"
 
 interface DrawEvent {
     x: number;
     y: number;
-    mode: Mode;
+    mode: Mode
     color: string;
     size: number;
     text?: string;
@@ -23,8 +25,6 @@ interface TextBox {
     text: string;
 }
 
-export type Mode = "select" | "draw" | "text" | "erase" | "image" | "audio" | "location"
-
 const CanvasPage: React.FC = () => {
 
     // General
@@ -35,6 +35,7 @@ const CanvasPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const [canvasInfo, setCanvasInfo] = useState<{ name: string } | null>(null);
 
+    // we need to set up a way to get canvas dimensions from the db
     useEffect(() => {
         if (!token || !id) return;
         fetch(`/api/canvases/${id}`, {
@@ -53,6 +54,10 @@ const CanvasPage: React.FC = () => {
     // ----- Canvas Functionalities ----- //
 
     const [texts, setTexts] = useState<TextBox[]>([]);
+
+    const [objects, setObjects] = useState<CanvasObject[]>([])
+
+    console.log(objects)
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     // const socketRef = useRef<WebSocket>();
@@ -73,9 +78,59 @@ const CanvasPage: React.FC = () => {
 
     // // This section sets up mouse event handlers for canvas interaction
 
-    // I'll add this for the text boxes
-    const handleMouseClick = () => {
-        // if (mode !== "text") return
+    // I'll add this for the text boxes & whatnot
+    const handleMouseClick = (canvas: HTMLCanvasElement, mode: Mode) => (e: MouseEvent) => {
+        const { x, y } = getCanvasXY(canvas, e, state.zoom);
+        switch (mode) {
+            case "text":
+                break;
+            case "audio":
+                setObjects(prev => [
+                    ...prev,
+                    {
+                        id: crypto.randomUUID(),
+                        x,
+                        y,
+                        type: "audio",
+                        url: "path", // placeholder
+                        width: 60,  // placeholder
+                        height: 60,
+                    },
+                ]);
+                break;
+            case "image":
+                setObjects(prev => [
+                    ...prev,
+                    {
+                        id: crypto.randomUUID(),
+                        x,
+                        y,
+                        type: "image",
+                        src: "path", // placeholder
+                        width: 100,  // placeholder
+                        height: 100,
+                    },
+                ]);
+                break;
+            case "location":
+                setObjects(prev => [
+                    ...prev,
+                    {
+                        id: crypto.randomUUID(),
+                        x,
+                        y,
+                        type: "location",
+                        label: "place", // placeholder
+                        width: 80,  // placeholder
+                        height: 80,
+                    },
+                ]);
+                break;
+            default:
+                // do nothing?
+                break;
+        }
+        console.log(lastPoint.current)
     }
 
     const handleMouseDown = (
@@ -91,8 +146,12 @@ const CanvasPage: React.FC = () => {
 
     const handleMouseUp = (ctx: CanvasRenderingContext2D) => () => {
         ctx.closePath();
-        lastPoint.current = null;
     };
+
+    // Prevents drawing glitches when cursor re-enters canvas
+    const handleMouseLeave = () => () => {
+        lastPoint.current = null;
+    }
 
     const handleMouseMove = (
         canvas: HTMLCanvasElement,
@@ -130,7 +189,8 @@ const CanvasPage: React.FC = () => {
             ["mousedown", handleMouseDown(canvas, ctx, state.zoom)],
             ["mousemove", handleMouseMove(canvas, ctx, state.zoom)],
             ["mouseup", handleMouseUp(ctx)],
-            ["mouseleave", handleMouseUp(ctx)],
+            ["mouseleave", handleMouseLeave()],
+            ["click", handleMouseClick(canvas, state.mode)]
         ];
 
         // Applies all event listeners on mount
@@ -144,7 +204,15 @@ const CanvasPage: React.FC = () => {
                 canvas.removeEventListener(event, handler);
             }
         };
-    }, [state.mode]);
+    }, [state.color, state.fontFamily, state.fontSize, state.mode, state.size]);
+
+    function updateOverlayPosition(id: string, x: number, y: number) {
+        setObjects(prevObjects =>
+            prevObjects.map(obj =>
+                obj.id === id ? { ...obj, x, y } : obj
+            )
+        );
+    }
 
     // ----- Component itself ----- //
 
@@ -158,12 +226,19 @@ const CanvasPage: React.FC = () => {
                 <Toolbar />
                 {/* Canvas Area */}
                 <main className="w-full bg-gray-300 pt-23 ps-10 overflow-auto grid place-items-center">
-                    {/* Canvas itself */}
-                    <canvas
-                        ref={canvasRef}
-                        style={{ scale: state.zoom + "%" }}
-                        className="mb-10 me-10 bg-white duration-100"
-                    />
+                    <div className="relative mb-10 me-10">
+                        {/* Canvas itself */}
+                        <canvas
+                            ref={canvasRef}
+                            style={{ scale: state.zoom + "%" }}
+                            className="bg-white duration-100"
+                        />
+                        {/* Overlayed Objects */}
+                        {/* ... */}
+                        {objects.map(obj => (
+                            <OverlayObject obj={obj} updateOverlayPosition={updateOverlayPosition} />
+                        ))}
+                    </div>
                 </main>
                 {/* Additional Tools Panel */}
                 <ToolsPanel />
