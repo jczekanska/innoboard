@@ -236,7 +236,12 @@ const CanvasPage: React.FC = () => {
                         {/* Overlayed Objects */}
                         {/* ... */}
                         {objects.map(obj => (
-                            <OverlayObject obj={obj} updateOverlayPosition={updateOverlayPosition} />
+                            <OverlayObject
+                                obj={obj}
+                                updateOverlayPosition={updateOverlayPosition}
+                                canvasWidth={canvasRef.current.width}
+                                canvasHeight={canvasRef.current.height}
+                            />
                         ))}
                     </div>
                 </main>

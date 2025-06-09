@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import { CanvasObject } from "@/types/canvas"
 import { useCanvasSettings } from "@/context/CanvasSettingsContext"
 import { Image, MapPinned, Music } from "lucide-react"
@@ -6,9 +6,16 @@ import { Image, MapPinned, Music } from "lucide-react"
 interface Props {
     obj: CanvasObject
     updateOverlayPosition: (id: string, x: number, y: number) => void
+    canvasWidth: number
+    canvasHeight: number
 }
 
-export const OverlayObject: React.FC<Props> = ({ obj, updateOverlayPosition }) => {
+export const OverlayObject: React.FC<Props> = ({
+    obj,
+    updateOverlayPosition,
+    canvasWidth,
+    canvasHeight
+}) => {
     const { state } = useCanvasSettings()
     const { zoom, mode } = state
 
@@ -21,13 +28,26 @@ export const OverlayObject: React.FC<Props> = ({ obj, updateOverlayPosition }) =
         elt.setPointerCapture(pid)
         setIsDragging(true)
 
-        const startX = e.clientX, startY = e.clientY
-        const baseX = obj.x, baseY = obj.y
+        const startX = e.clientX
+        const startY = e.clientY
+        const startCanvasX = obj.x
+        const startCanvasY = obj.y
 
         const onMove = (ev: PointerEvent) => {
-            const dx = (ev.clientX - startX) * (100 / zoom)
-            const dy = (ev.clientY - startY) * (100 / zoom)
-            updateOverlayPosition(obj.id, baseX + dx, baseY + dy)
+            // Calculate mouse movement in screen pixels
+            const screenDeltaX = ev.clientX - startX
+            const screenDeltaY = ev.clientY - startY
+
+            // Convert screen pixel movement to canvas coordinate movement
+            const zoomFactor = zoom / 100
+            const canvasDeltaX = screenDeltaX / zoomFactor
+            const canvasDeltaY = screenDeltaY / zoomFactor
+
+            // Update canvas coordinates
+            const newCanvasX = startCanvasX + canvasDeltaX
+            const newCanvasY = startCanvasY + canvasDeltaY
+
+            updateOverlayPosition(obj.id, newCanvasX, newCanvasY)
         }
 
         const onUp = (ev: PointerEvent) => {
@@ -47,34 +67,54 @@ export const OverlayObject: React.FC<Props> = ({ obj, updateOverlayPosition }) =
             : "grab"
         : "default"
 
+
+    // Necessary to calculate zoomed position offset relative to canvas center.
+    const centerX = canvasWidth / 2
+    const centerY = canvasHeight / 2
+
+    const zoomFactor = zoom / 100
+
+    const transformedX = centerX + (obj.x - centerX) * zoomFactor
+    const transformedY = centerY + (obj.y - centerY) * zoomFactor
+
+    const scaledWidth = obj.width * zoomFactor
+    const scaledHeight = obj.height * zoomFactor
+
     return (
         <div
             className="absolute"
             style={{
-                left: obj.x * (zoom / 100) - (obj.width / 2),
-                top: obj.y * (zoom / 100) - (obj.height / 2),
+                left: transformedX - (scaledWidth / 2),
+                top: transformedY - (scaledHeight / 2),
                 cursor,
             }}
             draggable={false}
             onPointerDown={mode === "select" ? startDrag : undefined}
         >
-            {/* remove width and height classes later */}
             {obj.type === "image" &&
-                <div className="bg-red-400 flex justify-center items-center rounded-2xl" style={{ width: obj.width, height: obj.height }}>
+                <div
+                    className="bg-red-400 flex justify-center items-center rounded-2xl"
+                    style={{ width: scaledWidth, height: scaledHeight }}
+                >
                     <Image className="text-white" />
-                </div>}
+                </div>
+            }
             {obj.type === "audio" &&
-                <div className="bg-blue-400 flex justify-center items-center rounded-2xl" style={{ width: obj.width, height: obj.height }}>
+                <div
+                    className="bg-blue-400 flex justify-center items-center rounded-2xl"
+                    style={{ width: scaledWidth, height: scaledHeight }}
+                >
                     <Music className="text-white" />
                 </div>
             }
             {obj.type === "location" &&
-                <div className="bg-green-400 flex justify-center items-center rounded-2xl" style={{ width: obj.width, height: obj.height }}>
+                <div
+                    className="bg-green-400 flex justify-center items-center rounded-2xl"
+                    style={{ width: scaledWidth, height: scaledHeight }}
+                >
                     <MapPinned className="text-white" />
                 </div>
             }
         </div>
     )
 }
-
-{/* <img src="/icons/audio.svg" className="w-6 h-6" alt="audio" /> */ }
