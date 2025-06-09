@@ -2,10 +2,10 @@ import React, { useState, useRef, useEffect, useContext } from "react"
 import { AuthContext } from "@/context/AuthContext"
 import { useNavigate, useParams } from "react-router-dom"
 import Header from "@/components/canvasPage/Header"
-import { Mode, useCanvasSettings } from "@/context/CanvasSettingsContext"
+import { useCanvasSettings } from "@/context/CanvasSettingsContext"
 import Toolbar from "@/components/canvasPage/Toolbar"
 import ToolsPanel from "@/components/canvasPage/ToolsPanel"
-import { CanvasObject } from "@/types/canvas"
+import { CanvasObject, Mode } from "@/types/canvas"
 import { OverlayObject } from "@/components/canvasPage/OverlayObject"
 
 interface DrawEvent {
@@ -109,6 +109,7 @@ const CanvasPage: React.FC = () => {
                         src: "path", // placeholder
                         width: 100,  // placeholder
                         height: 100,
+                        rotation: 0
                     },
                 ]);
                 break;
@@ -214,6 +215,22 @@ const CanvasPage: React.FC = () => {
         );
     }
 
+    function updateOverlayRotation(id: string, rotation: number) {
+        setObjects(prevObjects =>
+            prevObjects.map(obj =>
+                obj.id === id ? { ...obj, rotation } : obj
+            )
+        );
+    }
+
+    function updateOverlayDimension(id: string, width: number, height: number) {
+        setObjects(prevObjects =>
+            prevObjects.map(obj =>
+                obj.id === id ? { ...obj, width, height } : obj
+            )
+        );
+    }
+
     // ----- Component itself ----- //
 
     return (
@@ -239,6 +256,8 @@ const CanvasPage: React.FC = () => {
                             <OverlayObject
                                 obj={obj}
                                 updateOverlayPosition={updateOverlayPosition}
+                                updateOverlayRotation={updateOverlayRotation}
+                                updateOverlayDimension={updateOverlayDimension}
                                 canvasWidth={canvasRef.current.width}
                                 canvasHeight={canvasRef.current.height}
                             />

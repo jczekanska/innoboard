@@ -45,7 +45,7 @@ const CanvasPage: React.FC = () => {
   const { token } = useContext(AuthContext);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const wsRef = useRef<WebSocket>();
+  // const wsRef = useRef<WebSocket>();
 
   const [canvasInfo, setCanvasInfo] = useState<{ name: string } | null>(null);
   const [mode, setMode] = useState<Mode>("draw");
@@ -54,65 +54,65 @@ const CanvasPage: React.FC = () => {
   const [texts, setTexts] = useState<TextBox[]>([]);
   const [contentImage, setContentImage] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!token || !id) return;
-    fetch(`/api/canvases/${id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then(setCanvasInfo)
-      .catch(() => navigate("/dashboard"));
-  }, [id, token, navigate]);
+  // useEffect(() => {
+  //   if (!token || !id) return;
+  //   fetch(`/api/canvases/${id}`, {
+  //     headers: { Authorization: `Bearer ${token}` },
+  //   })
+  //     .then((r) => (r.ok ? r.json() : Promise.reject()))
+  //     .then(setCanvasInfo)
+  //     .catch(() => navigate("/dashboard"));
+  // }, [id, token, navigate]);
 
-  useEffect(() => {
-    if (!token || !id) return;
-    fetch(`/api/canvases/${id}/data`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then(({ content }) => {
-        setContentImage(content.image || null);
-        setTexts(content.texts || []);
-        if (content.image && canvasRef.current) {
-          const ctx = canvasRef.current.getContext("2d")!;
-          const img = new Image();
-          img.onload = () => ctx.drawImage(img, 0, 0);
-          img.src = content.image;
-        }
-      })
-      .catch(console.error);
-  }, [id, token]);
+  // useEffect(() => {
+  //   if (!token || !id) return;
+  //   fetch(`/api/canvases/${id}/data`, {
+  //     headers: { Authorization: `Bearer ${token}` },
+  //   })
+  //     .then((r) => r.json())
+  //     .then(({ content }) => {
+  //       setContentImage(content.image || null);
+  //       setTexts(content.texts || []);
+  //       if (content.image && canvasRef.current) {
+  //         const ctx = canvasRef.current.getContext("2d")!;
+  //         const img = new Image();
+  //         img.onload = () => ctx.drawImage(img, 0, 0);
+  //         img.src = content.image;
+  //       }
+  //     })
+  //     .catch(console.error);
+  // }, [id, token]);
 
-  useEffect(() => {
-    if (!token || !id) return;
-    const ws = new WebSocket(
-      `ws://localhost:8000/ws/canvas/${id}?token=${token}`
-    );
-    wsRef.current = ws;
-    ws.onmessage = ({ data }) => {
-      const evt = JSON.parse(data) as DrawEvent;
-      const { x, y, mode, color: c, size: s, text } = evt;
-      const ctx = canvasRef.current?.getContext("2d");
-      if (!ctx) return;
+  // useEffect(() => {
+  //   if (!token || !id) return;
+  //   const ws = new WebSocket(
+  //     `ws://localhost:8000/ws/canvas/${id}?token=${token}`
+  //   );
+  //   wsRef.current = ws;
+  //   ws.onmessage = ({ data }) => {
+  //     const evt = JSON.parse(data) as DrawEvent;
+  //     const { x, y, mode, color: c, size: s, text } = evt;
+  //     const ctx = canvasRef.current?.getContext("2d");
+  //     if (!ctx) return;
 
-      ctx.lineWidth = s;
-      ctx.strokeStyle = c;
-      ctx.fillStyle = c;
-      ctx.globalCompositeOperation =
-        mode === "erase" ? "destination-out" : "source-over";
+  //     ctx.lineWidth = s;
+  //     ctx.strokeStyle = c;
+  //     ctx.fillStyle = c;
+  //     ctx.globalCompositeOperation =
+  //       mode === "erase" ? "destination-out" : "source-over";
 
-      if (mode === "text" && text) {
-        ctx.font = `${s * 4}px sans-serif`;
-        ctx.fillText(text, x, y);
-      } else if (mode !== "text") {
-        ctx.lineTo(x, y);
-        ctx.stroke();
-      }
-    };
-    ws.onerror = console.error;
-    ws.onclose = () => console.log("WS closed");
-    return () => ws.close();
-  }, [id, token]);
+  //     if (mode === "text" && text) {
+  //       ctx.font = `${s * 4}px sans-serif`;
+  //       ctx.fillText(text, x, y);
+  //     } else if (mode !== "text") {
+  //       ctx.lineTo(x, y);
+  //       ctx.stroke();
+  //     }
+  //   };
+  //   ws.onerror = console.error;
+  //   ws.onclose = () => console.log("WS closed");
+  //   return () => ws.close();
+  // }, [id, token]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
