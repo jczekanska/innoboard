@@ -1,80 +1,117 @@
-import React, { useState } from "react"
-import { CanvasObject } from "@/types/canvas"
-import { useCanvasSettings } from "@/context/CanvasSettingsContext"
-import { Image, MapPinned, Music } from "lucide-react"
+import React from "react";
+import { CanvasObject } from "@/types/canvas";
+import { useCanvasSettings } from "@/context/CanvasSettingsContext";
+import { Image, MapPinned, Music } from "lucide-react";
+import { useOverlayHandlers } from "@/hooks/useOverlayHandlers";
 
 interface Props {
-    obj: CanvasObject
-    updateOverlayPosition: (id: string, x: number, y: number) => void
+    obj: CanvasObject;
+    updateOverlayPosition: (id: string, x: number, y: number) => void;
+    updateOverlayRotation: (id: string, rotation: number) => void;
+    updateOverlayDimension: (id: string, width: number, height: number) => void;
+    canvasWidth: number;
+    canvasHeight: number;
 }
 
-export const OverlayObject: React.FC<Props> = ({ obj, updateOverlayPosition }) => {
-    const { state } = useCanvasSettings()
-    const { zoom, mode } = state
+// Helper functions for coordinate transformations
+const createZoomHelpers = (zoom: number) => {
+    const zoomFactor = zoom / 100;
+    return {
+        zoomFactor,
+        toCanvas: (screenDelta: number) => screenDelta / zoomFactor,
+        toScreen: (canvasDelta: number) => canvasDelta * zoomFactor,
+    };
+};
 
-    const [isDragging, setIsDragging] = useState(false)
+// Memoized component to avoid re-rendering this overlay when unrelated objects update
+export const OverlayObject = React.memo<Props>(({
+    obj,
+    updateOverlayPosition,
+    updateOverlayRotation,
+    updateOverlayDimension,
+    canvasWidth,
+    canvasHeight
+}) => {
+    const { state } = useCanvasSettings();
+    const { zoom, mode } = state;
 
-    const startDrag = (e: React.PointerEvent<HTMLDivElement>) => {
-        e.preventDefault()
-        const elt = e.currentTarget
-        const pid = e.pointerId
-        elt.setPointerCapture(pid)
-        setIsDragging(true)
+    const { zoomFactor } = createZoomHelpers(zoom);
 
-        const startX = e.clientX, startY = e.clientY
-        const baseX = obj.x, baseY = obj.y
+    const { getPointerHandler, getCursor } = useOverlayHandlers({
+        obj,
+        mode,
+        zoom,
+        updateOverlayPosition,
+        updateOverlayRotation,
+        updateOverlayDimension,
+    });
 
-        const onMove = (ev: PointerEvent) => {
-            const dx = (ev.clientX - startX) * (100 / zoom)
-            const dy = (ev.clientY - startY) * (100 / zoom)
-            updateOverlayPosition(obj.id, baseX + dx, baseY + dy)
+    // Calculate transformed position and dimensions
+    const getTransformedProperties = () => {
+        const centerX = canvasWidth / 2;
+        const centerY = canvasHeight / 2;
+
+        const transformedX = centerX + (obj.x - centerX) * zoomFactor;
+        const transformedY = centerY + (obj.y - centerY) * zoomFactor;
+        const scaledWidth = obj.width * zoomFactor;
+        const scaledHeight = obj.height * zoomFactor;
+
+        return {
+            x: transformedX - scaledWidth / 2,
+            y: transformedY - scaledHeight / 2,
+            width: scaledWidth,
+            height: scaledHeight,
+        };
+    };
+
+    // Render object content based on type
+    const renderObjectContent = (width: number, height: number) => {
+        const commonClasses = "flex justify-center items-center rounded-2xl";
+        const iconProps = { className: "text-white" };
+        const style = { width, height };
+
+        switch (obj.type) {
+            case "image":
+                return (
+                    <div className={`bg-red-400 ${commonClasses}`} style={style}>
+                        <Image {...iconProps} />
+                    </div>
+                );
+            case "audio":
+                return (
+                    <div className={`bg-blue-400 ${commonClasses}`} style={style}>
+                        <Music {...iconProps} />
+                    </div>
+                );
+            case "location":
+                return (
+                    <div className={`bg-green-400 ${commonClasses}`} style={style}>
+                        <MapPinned {...iconProps} />
+                    </div>
+                );
+            default:
+                return null;
         }
+    };
 
-        const onUp = (ev: PointerEvent) => {
-            window.removeEventListener("pointermove", onMove)
-            window.removeEventListener("pointerup", onUp)
-            elt.releasePointerCapture(pid)
-            setIsDragging(false)
-        }
-
-        window.addEventListener("pointermove", onMove)
-        window.addEventListener("pointerup", onUp)
-    }
-
-    const cursor = mode === "select"
-        ? isDragging
-            ? "grabbing"
-            : "grab"
-        : "default"
+    const transformed = getTransformedProperties();
+    const rotation = obj.type === "image" ? obj.rotation || 0 : 0;
 
     return (
         <div
             className="absolute"
             style={{
-                left: obj.x * (zoom / 100) - (obj.width / 2),
-                top: obj.y * (zoom / 100) - (obj.height / 2),
-                cursor,
+                rotate: `${rotation}deg`,
+                left: transformed.x,
+                top: transformed.y,
+                cursor: getCursor(),
             }}
             draggable={false}
-            onPointerDown={mode === "select" ? startDrag : undefined}
+            onPointerDown={getPointerHandler()}
         >
-            {/* remove width and height classes later */}
-            {obj.type === "image" &&
-                <div className="bg-red-400 flex justify-center items-center rounded-2xl" style={{ width: obj.width, height: obj.height }}>
-                    <Image className="text-white" />
-                </div>}
-            {obj.type === "audio" &&
-                <div className="bg-blue-400 flex justify-center items-center rounded-2xl" style={{ width: obj.width, height: obj.height }}>
-                    <Music className="text-white" />
-                </div>
-            }
-            {obj.type === "location" &&
-                <div className="bg-green-400 flex justify-center items-center rounded-2xl" style={{ width: obj.width, height: obj.height }}>
-                    <MapPinned className="text-white" />
-                </div>
-            }
+            {renderObjectContent(transformed.width, transformed.height)}
         </div>
-    )
-}
+    );
+});
 
-{/* <img src="/icons/audio.svg" className="w-6 h-6" alt="audio" /> */ }
+OverlayObject.displayName = "OverlayObject";
