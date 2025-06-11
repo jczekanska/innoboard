@@ -1,9 +1,10 @@
 import React, { useMemo } from "react";
 import { CanvasObject } from "@/types/canvas";
 import { useCanvasSettings } from "@/context/CanvasSettingsContext";
-import { Image, MapPinned, Music } from "lucide-react";
+
 import { useOverlayHandlers } from "@/hooks/useOverlayHandlers";
 import { OverlayLocation } from "./OverlayLocation";
+import { OverlayAudio } from "./OverlayAudio";
 
 interface Props {
     obj: CanvasObject;
@@ -71,7 +72,6 @@ export const OverlayObject = React.memo<Props>(({
     // Render object content based on type
     const renderObjectContent = (width: number, height: number) => {
         const commonClasses = "flex justify-center items-center rounded-2xl";
-        const iconProps = { className: "text-white" };
         const style = { width, height };
 
         switch (obj.type) {
@@ -84,9 +84,13 @@ export const OverlayObject = React.memo<Props>(({
                 );
             case "audio":
                 return (
-                    <div className={`bg-blue-400 ${commonClasses}`} style={style}>
-                        <Music {...iconProps} />
-                    </div>
+                    <OverlayAudio
+                        src={obj.url}
+                        filename={obj.filename}
+                        width={width}
+                        height={height}
+                        isInteractable={mode === "select"}
+                    />
                 );
             case "location":
                 return (

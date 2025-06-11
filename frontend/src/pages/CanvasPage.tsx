@@ -84,20 +84,38 @@ const CanvasPage: React.FC = () => {
         switch (mode) {
             case "text":
                 break;
-            case "audio":
-                setObjects(prev => [
-                    ...prev,
-                    {
-                        id: crypto.randomUUID(),
-                        x,
-                        y,
-                        type: "audio",
-                        url: "path", // placeholder
-                        width: 60,  // placeholder
-                        height: 60,
-                    },
-                ]);
+            case "audio": {
+                const input = document.createElement("input");
+                input.type = "file";
+                input.accept = "audio/*";
+
+                input.onchange = () => {
+                    const file = input.files?.[0];
+                    if (!file) {
+                        console.log("No audio file selected");
+                        return;
+                    }
+
+                    const url = URL.createObjectURL(file);
+
+                    setObjects(prev => [
+                        ...prev,
+                        {
+                            id: crypto.randomUUID(),
+                            x,
+                            y,
+                            type: "audio",
+                            url: url,
+                            filename: file.name,
+                            width: 250,  // Default width for audio player
+                            height: 80,  // Default height for audio player
+                        },
+                    ]);
+                };
+
+                input.click();
                 break;
+            }
             case "image": {
                 const input = document.createElement("input");
                 input.type = "file";

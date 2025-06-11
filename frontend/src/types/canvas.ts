@@ -34,6 +34,7 @@ export type CanvasObject =
     width: number;
     height: number;
     url: string;
+    filename: string;
   }
   | {
     id: string;

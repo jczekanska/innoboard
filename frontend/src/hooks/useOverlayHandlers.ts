@@ -217,6 +217,7 @@ export const useOverlayHandlers = ({
             case "move":
                 return "move";
             case "rotate":
+                if (obj.type !== "image") return "not-allowed";
                 return isDragging ? "grabbing" : "grab";
             case "resize":
                 return "nesw-resize";
