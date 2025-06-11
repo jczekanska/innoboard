@@ -105,7 +105,7 @@ export const OverlayObject = React.memo<Props>(({
 
     return (
         <div
-            className={`absolute transition-all duration-300 ${isDeleting ? 'scale-0 opacity-0' : ''}`}
+            className={`absolute ${isDeleting ? 'transition-all duration-300 scale-0 opacity-0' : ''}`}
             style={{
                 transform: `rotate(${rotation}deg)`,
                 left: transformed.x,

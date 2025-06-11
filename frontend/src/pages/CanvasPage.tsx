@@ -98,7 +98,6 @@ const CanvasPage: React.FC = () => {
                     },
                 ]);
                 break;
-            case "image":
             case "image": {
                 const input = document.createElement("input");
                 input.type = "file";

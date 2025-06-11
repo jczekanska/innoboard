@@ -209,7 +209,7 @@ export const useOverlayHandlers = ({
             default:
                 return undefined;
         }
-    }, [mode, handlePosition, handleRotation, handleResize]);
+    }, [mode, handlePosition, handleRotation, handleResize, handleDelete]);
 
     // Determine cursor style
     const getCursor = useCallback((): string => {
