@@ -1,15 +1,17 @@
 import type { Mode } from "@/types/canvas"
-import { Eraser, FileAudio, MapPin, Minus, MousePointer, PencilLine, Plus, Type, LucideIcon, Image, Scaling, RotateCw } from "lucide-react"
+import { Eraser, FileAudio, MapPin, Minus, MousePointer, PencilLine, Plus, Type, LucideIcon, Image, Scaling, RotateCw, Trash2, MoveIcon } from "lucide-react"
 import ToolsButton from "./ToolsButton"
 import { useCanvasSettings } from "@/context/CanvasSettingsContext"
 
 const TOOLS: Record<Mode, LucideIcon> = {
+    draw: PencilLine,
+    erase: Eraser,
     select: MousePointer,
+    move: MoveIcon,
     resize: Scaling,
     rotate: RotateCw,
-    draw: PencilLine,
+    delete: Trash2,
     text: Type,
-    erase: Eraser,
     image: Image,
     audio: FileAudio,
     location: MapPin,

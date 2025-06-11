@@ -1,7 +1,9 @@
 export type Mode =
   | "select"
+  | "move"
   | "resize"
   | "rotate"
+  | "delete"
   | "draw"
   | "text"
   | "erase"

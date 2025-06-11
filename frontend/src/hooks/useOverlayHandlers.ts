@@ -19,7 +19,7 @@ const usePointerDrag = () => {
         e: React.PointerEvent<HTMLDivElement>,
         onMove: (ev: PointerEvent) => void,
         onStart?: () => void,
-        onEnd?: () => void
+        onEnd?: () => void,
     ) => {
         e.preventDefault();
         const elt = e.currentTarget;
@@ -70,14 +70,14 @@ export const useOverlayHandlers = ({
     const handleResize = useCallback(
         (e: React.PointerEvent<HTMLDivElement>) => {
             const startX = e.clientX;
-            const startY = e.clientY;
+            // const startY = e.clientY;
             const startWidth = obj.width;
             const startHeight = obj.height;
             const aspectRatio = startWidth / startHeight;
 
             const onMove = (ev: PointerEvent) => {
                 const deltaX = toCanvas(ev.clientX - startX);
-                const deltaY = toCanvas(ev.clientY - startY);
+                // const deltaY = toCanvas(ev.clientY - startY);
 
                 // Maintain aspect ratio based on X delta
                 const newWidth = startWidth + deltaX;
@@ -92,10 +92,17 @@ export const useOverlayHandlers = ({
                 e,
                 onMove,
                 () => setIsResizing(true),
-                () => setIsResizing(false)
+                () => setIsResizing(false),
             );
         },
-        [obj.id, obj.width, obj.height, updateOverlayDimension, startDrag, toCanvas]
+        [
+            obj.id,
+            obj.width,
+            obj.height,
+            updateOverlayDimension,
+            startDrag,
+            toCanvas,
+        ],
     );
 
     // Rotation handler
@@ -106,13 +113,20 @@ export const useOverlayHandlers = ({
             const rect = e.currentTarget.getBoundingClientRect();
             const centerX = rect.left + rect.width / 2;
             const centerY = rect.top + rect.height / 2;
-            const startAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX);
+            const startAngle = Math.atan2(
+                e.clientY - centerY,
+                e.clientX - centerX,
+            );
             const initialRotation = obj.rotation || 0;
 
             const onMove = (ev: PointerEvent) => {
-                const currentAngle = Math.atan2(ev.clientY - centerY, ev.clientX - centerX);
+                const currentAngle = Math.atan2(
+                    ev.clientY - centerY,
+                    ev.clientX - centerX,
+                );
                 const deltaRadians = currentAngle - startAngle;
-                const rotationDeg = initialRotation + deltaRadians * (180 / Math.PI);
+                const rotationDeg = initialRotation +
+                    deltaRadians * (180 / Math.PI);
                 updateOverlayRotation(obj.id, rotationDeg);
             };
 
@@ -120,10 +134,16 @@ export const useOverlayHandlers = ({
                 e,
                 onMove,
                 () => setIsRotating(true),
-                () => setIsRotating(false)
+                () => setIsRotating(false),
             );
         },
-        [obj.id, obj.type, obj.type === "image" && obj.rotation, updateOverlayRotation, startDrag]
+        [
+            obj.id,
+            obj.type,
+            obj.type === "image" && obj.rotation,
+            updateOverlayRotation,
+            startDrag,
+        ],
     );
 
     // Position handler
@@ -151,32 +171,42 @@ export const useOverlayHandlers = ({
                 e,
                 onMove,
                 () => setIsDragging(true),
-                () => setIsDragging(false)
+                () => setIsDragging(false),
             );
         },
-        [obj.id, obj.x, obj.y, updateOverlayPosition, startDrag, toCanvas]
+        [obj.id, obj.x, obj.y, updateOverlayPosition, startDrag, toCanvas],
     );
 
     // UTILS
-    // Get handler based on mode 
+    // Get handler based on mode
     const getPointerHandler = useCallback(() => {
         switch (mode) {
-            case "select": return handlePosition;
-            case "rotate": return handleRotation;
-            case "resize": return handleResize;
-            default: return undefined;
+            case "move":
+                return handlePosition;
+            case "rotate":
+                return handleRotation;
+            case "resize":
+                return handleResize;
+
+            default:
+                return undefined;
         }
     }, [mode, handlePosition, handleRotation, handleResize]);
 
     // Determine cursor style
     const getCursor = useCallback((): string => {
-        if (mode === "select" || mode === "rotate") {
-            return isDragging ? "grabbing" : "grab";
+        switch (mode) {
+            case "move":
+                return "move";
+            case "rotate":
+                return isDragging ? "grabbing" : "grab";
+            case "resize":
+                return "nesw-resize";
+            case "delete":
+                return "pointer";
+            default:
+                return "default";
         }
-        if (mode === "resize") {
-            return "nesw-resize";
-        }
-        return "default";
     }, [mode, isDragging]);
 
     return {
