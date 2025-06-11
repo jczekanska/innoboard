@@ -1,5 +1,5 @@
 import { CanvasObject, Mode } from "@/types/canvas";
-import { useCallback, useState } from "react";
+import { useCallback, useState, useRef } from "react";
 
 const MIN_SIZE = 50;
 
@@ -63,6 +63,8 @@ export const useOverlayHandlers = ({
     const [isDragging, setIsDragging] = useState(false);
     const [isRotating, setIsRotating] = useState(false);
     const [isResizing, setIsResizing] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const animationRef = useRef<number | null>(null);
 
     const { startDrag } = usePointerDrag();
     const { toCanvas } = createZoomHelpers(zoom);
@@ -181,7 +183,13 @@ export const useOverlayHandlers = ({
 
     const handleDelete = useCallback(
         (e: React.PointerEvent<HTMLDivElement>) => {
-            deleteObject(obj.id);
+            e.stopPropagation();
+            setIsDeleting(true);
+            
+            // Delay actual deletion until animation completes
+            setTimeout(() => {
+                deleteObject(obj.id);
+            }, 300); // Match this with CSS animation duration
         },
         [obj.id, deleteObject],
     );
@@ -223,6 +231,7 @@ export const useOverlayHandlers = ({
         isDragging,
         isRotating,
         isResizing,
+        isDeleting,
         getPointerHandler,
         getCursor,
     };

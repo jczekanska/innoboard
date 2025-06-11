@@ -40,7 +40,7 @@ export const OverlayObject = React.memo<Props>(({
 
     const { zoomFactor } = createZoomHelpers(zoom);
 
-    const { getPointerHandler, getCursor } = useOverlayHandlers({
+    const { getPointerHandler, getCursor, isDeleting } = useOverlayHandlers({
         obj,
         mode,
         zoom,
@@ -105,7 +105,7 @@ export const OverlayObject = React.memo<Props>(({
 
     return (
         <div
-            className="absolute"
+            className={`absolute transition-all duration-300 ${isDeleting ? 'scale-0 opacity-0' : ''}`}
             style={{
                 transform: `rotate(${rotation}deg)`,
                 left: transformed.x,
