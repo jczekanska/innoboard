@@ -7,6 +7,7 @@ import Toolbar from "@/components/canvasPage/Toolbar"
 import ToolsPanel from "@/components/canvasPage/ToolsPanel"
 import { CanvasObject, Mode } from "@/types/canvas"
 import { OverlayObject } from "@/components/canvasPage/OverlayObject"
+import { LocationPicker } from "@/components/canvasPage/LocationPicker"
 
 interface DrawEvent {
     x: number;
@@ -56,6 +57,8 @@ const CanvasPage: React.FC = () => {
     const [texts, setTexts] = useState<TextBox[]>([]);
 
     const [objects, setObjects] = useState<CanvasObject[]>([])
+    const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false);
+    const [pendingLocationCoords, setPendingLocationCoords] = useState<{ x: number; y: number } | null>(null);
 
     console.log(objects)
 
@@ -178,18 +181,8 @@ const CanvasPage: React.FC = () => {
             }
 
             case "location":
-                setObjects(prev => [
-                    ...prev,
-                    {
-                        id: crypto.randomUUID(),
-                        x,
-                        y,
-                        type: "location",
-                        label: "place", // placeholder
-                        width: 80,  // placeholder
-                        height: 80,
-                    },
-                ]);
+                setPendingLocationCoords({ x, y });
+                setIsLocationPickerOpen(true);
                 break;
             default:
                 // do nothing?
@@ -299,6 +292,32 @@ const CanvasPage: React.FC = () => {
         setObjects(prevObjects => prevObjects.filter(obj => obj.id !== id));
     }
 
+    const handleLocationSelect = (location: { name: string; lat: number; lng: number }) => {
+        if (!pendingLocationCoords) return;
+
+        setObjects(prev => [
+            ...prev,
+            {
+                id: crypto.randomUUID(),
+                x: pendingLocationCoords.x,
+                y: pendingLocationCoords.y,
+                type: "location",
+                label: location.name,
+                lat: location.lat,
+                lng: location.lng,
+                width: 200,  // Default width for location map
+                height: 150, // Default height for location map
+            },
+        ]);
+
+        setPendingLocationCoords(null);
+    };
+
+    const handleLocationPickerClose = () => {
+        setIsLocationPickerOpen(false);
+        setPendingLocationCoords(null);
+    };
+
     // ----- Component itself ----- //
 
     return (
@@ -337,6 +356,13 @@ const CanvasPage: React.FC = () => {
                 {/* Additional Tools Panel */}
                 <ToolsPanel />
             </div>
+
+            {/* Location Picker Modal */}
+            <LocationPicker
+                isOpen={isLocationPickerOpen}
+                onClose={handleLocationPickerClose}
+                onLocationSelect={handleLocationSelect}
+            />
         </div>
 
     )

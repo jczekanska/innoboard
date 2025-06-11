@@ -44,4 +44,6 @@ export type CanvasObject =
     width: number;
     height: number;
     label: string;
+    lat: number;
+    lng: number;
   };

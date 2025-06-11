@@ -94,10 +94,13 @@ export const OverlayObject = React.memo<Props>(({
                 );
             case "location":
                 return (
-                    <div className={`bg-green-400 ${commonClasses}`} style={style}>
-                        {/* <MapPinned {...iconProps} /> */}
-                        <OverlayLocation />
-                    </div>
+                    <OverlayLocation
+                        label={obj.label}
+                        lat={obj.lat}
+                        lng={obj.lng}
+                        width={width}
+                        height={height}
+                    />
                 );
             default:
                 return null;
