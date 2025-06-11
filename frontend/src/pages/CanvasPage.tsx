@@ -254,7 +254,7 @@ const CanvasPage: React.FC = () => {
         };
     }, [state.color, state.fontFamily, state.fontSize, state.mode, state.size]);
 
-    function updateOverlayPosition(id: string, x: number, y: number) {
+    function updateObjectPosition(id: string, x: number, y: number) {
         setObjects(prevObjects =>
             prevObjects.map(obj =>
                 obj.id === id ? { ...obj, x, y } : obj
@@ -262,7 +262,7 @@ const CanvasPage: React.FC = () => {
         );
     }
 
-    function updateOverlayRotation(id: string, rotation: number) {
+    function updateObjectRotation(id: string, rotation: number) {
         setObjects(prevObjects =>
             prevObjects.map(obj =>
                 obj.id === id ? { ...obj, rotation } : obj
@@ -270,12 +270,16 @@ const CanvasPage: React.FC = () => {
         );
     }
 
-    function updateOverlayDimension(id: string, width: number, height: number) {
+    function updateObjectDimension(id: string, width: number, height: number) {
         setObjects(prevObjects =>
             prevObjects.map(obj =>
                 obj.id === id ? { ...obj, width, height } : obj
             )
         );
+    }
+
+    function deleteObject(id: string) {
+        setObjects(prevObjects => prevObjects.filter(obj => obj.id !== id));
     }
 
     // ----- Component itself ----- //
@@ -301,10 +305,12 @@ const CanvasPage: React.FC = () => {
                         {/* ... */}
                         {objects.map(obj => (
                             <OverlayObject
+                            key={obj.id}
                                 obj={obj}
-                                updateOverlayPosition={updateOverlayPosition}
-                                updateOverlayRotation={updateOverlayRotation}
-                                updateOverlayDimension={updateOverlayDimension}
+                                updateObjectPosition={updateObjectPosition}
+                                updateObjectRotation={updateObjectRotation}
+                                updateObjectDimension={updateObjectDimension}
+                                deleteObject={deleteObject}
                                 canvasWidth={canvasRef.current.width}
                                 canvasHeight={canvasRef.current.height}
                             />

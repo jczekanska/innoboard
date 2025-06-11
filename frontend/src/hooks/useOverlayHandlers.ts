@@ -45,18 +45,20 @@ interface UseOverlayHandlersProps {
     obj: CanvasObject;
     mode: Mode;
     zoom: number;
-    updateOverlayPosition: (id: string, x: number, y: number) => void;
-    updateOverlayRotation: (id: string, rotation: number) => void;
-    updateOverlayDimension: (id: string, width: number, height: number) => void;
+    updateObjectPosition: (id: string, x: number, y: number) => void;
+    updateObjectRotation: (id: string, rotation: number) => void;
+    updateObjectDimension: (id: string, width: number, height: number) => void;
+    deleteObject: (id: string) => void;
 }
 
 export const useOverlayHandlers = ({
     obj,
     mode,
     zoom,
-    updateOverlayPosition,
-    updateOverlayRotation,
-    updateOverlayDimension,
+    updateObjectPosition,
+    updateObjectRotation,
+    updateObjectDimension,
+    deleteObject
 }: UseOverlayHandlersProps) => {
     const [isDragging, setIsDragging] = useState(false);
     const [isRotating, setIsRotating] = useState(false);
@@ -84,7 +86,7 @@ export const useOverlayHandlers = ({
                 const newHeight = newWidth / aspectRatio;
 
                 if (newWidth > MIN_SIZE && newHeight > MIN_SIZE) {
-                    updateOverlayDimension(obj.id, newWidth, newHeight);
+                    updateObjectDimension(obj.id, newWidth, newHeight);
                 }
             };
 
@@ -99,7 +101,7 @@ export const useOverlayHandlers = ({
             obj.id,
             obj.width,
             obj.height,
-            updateOverlayDimension,
+            updateObjectDimension,
             startDrag,
             toCanvas,
         ],
@@ -127,7 +129,7 @@ export const useOverlayHandlers = ({
                 const deltaRadians = currentAngle - startAngle;
                 const rotationDeg = initialRotation +
                     deltaRadians * (180 / Math.PI);
-                updateOverlayRotation(obj.id, rotationDeg);
+                updateObjectRotation(obj.id, rotationDeg);
             };
 
             startDrag(
@@ -141,7 +143,7 @@ export const useOverlayHandlers = ({
             obj.id,
             obj.type,
             obj.type === "image" && obj.rotation,
-            updateOverlayRotation,
+            updateObjectRotation,
             startDrag,
         ],
     );
@@ -164,7 +166,7 @@ export const useOverlayHandlers = ({
                 const newCanvasX = startCanvasX + canvasDeltaX;
                 const newCanvasY = startCanvasY + canvasDeltaY;
 
-                updateOverlayPosition(obj.id, newCanvasX, newCanvasY);
+                updateObjectPosition(obj.id, newCanvasX, newCanvasY);
             };
 
             startDrag(
@@ -174,7 +176,14 @@ export const useOverlayHandlers = ({
                 () => setIsDragging(false),
             );
         },
-        [obj.id, obj.x, obj.y, updateOverlayPosition, startDrag, toCanvas],
+        [obj.id, obj.x, obj.y, updateObjectPosition, startDrag, toCanvas],
+    );
+
+    const handleDelete = useCallback(
+        (e: React.PointerEvent<HTMLDivElement>) => {
+            deleteObject(obj.id);
+        },
+        [obj.id, deleteObject],
     );
 
     // UTILS
@@ -187,7 +196,8 @@ export const useOverlayHandlers = ({
                 return handleRotation;
             case "resize":
                 return handleResize;
-
+            case "delete":
+                return handleDelete;
             default:
                 return undefined;
         }

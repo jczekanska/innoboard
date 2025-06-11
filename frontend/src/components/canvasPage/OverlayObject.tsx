@@ -7,9 +7,10 @@ import { OverlayLocation } from "./OverlayLocation";
 
 interface Props {
     obj: CanvasObject;
-    updateOverlayPosition: (id: string, x: number, y: number) => void;
-    updateOverlayRotation: (id: string, rotation: number) => void;
-    updateOverlayDimension: (id: string, width: number, height: number) => void;
+    updateObjectPosition: (id: string, x: number, y: number) => void;
+    updateObjectRotation: (id: string, rotation: number) => void;
+    updateObjectDimension: (id: string, width: number, height: number) => void;
+    deleteObject: (id: string) => void;
     canvasWidth: number;
     canvasHeight: number;
 }
@@ -27,9 +28,10 @@ const createZoomHelpers = (zoom: number) => {
 // Memoized component to avoid re-rendering this overlay when unrelated objects update
 export const OverlayObject = React.memo<Props>(({
     obj,
-    updateOverlayPosition,
-    updateOverlayRotation,
-    updateOverlayDimension,
+    updateObjectPosition,
+    updateObjectRotation,
+    updateObjectDimension,
+    deleteObject,
     canvasWidth,
     canvasHeight
 }) => {
@@ -42,9 +44,10 @@ export const OverlayObject = React.memo<Props>(({
         obj,
         mode,
         zoom,
-        updateOverlayPosition,
-        updateOverlayRotation,
-        updateOverlayDimension,
+        updateObjectPosition,
+        updateObjectRotation,
+        updateObjectDimension,
+        deleteObject
     });
 
     // Calculate transformed position and dimensions
