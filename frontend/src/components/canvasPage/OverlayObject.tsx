@@ -3,6 +3,7 @@ import { CanvasObject } from "@/types/canvas";
 import { useCanvasSettings } from "@/context/CanvasSettingsContext";
 import { Image, MapPinned, Music } from "lucide-react";
 import { useOverlayHandlers } from "@/hooks/useOverlayHandlers";
+import { OverlayLocation } from "./OverlayLocation";
 
 interface Props {
     obj: CanvasObject;
@@ -73,8 +74,9 @@ export const OverlayObject = React.memo<Props>(({
         switch (obj.type) {
             case "image":
                 return (
-                    <div className={`bg-red-400 ${commonClasses}`} style={style}>
-                        <Image {...iconProps} />
+                    <div className={`${!obj.src && "bg-red-400"} ${commonClasses}`} style={style}>
+                        {/* <Image {...iconProps} /> */}
+                        <img src={obj.type === "image" && obj.src}></img>
                     </div>
                 );
             case "audio":
@@ -86,7 +88,8 @@ export const OverlayObject = React.memo<Props>(({
             case "location":
                 return (
                     <div className={`bg-green-400 ${commonClasses}`} style={style}>
-                        <MapPinned {...iconProps} />
+                        {/* <MapPinned {...iconProps} /> */}
+                        <OverlayLocation />
                     </div>
                 );
             default:

@@ -99,20 +99,67 @@ const CanvasPage: React.FC = () => {
                 ]);
                 break;
             case "image":
-                setObjects(prev => [
-                    ...prev,
-                    {
-                        id: crypto.randomUUID(),
-                        x,
-                        y,
-                        type: "image",
-                        src: "path", // placeholder
-                        width: 100,  // placeholder
-                        height: 100,
-                        rotation: 0
-                    },
-                ]);
+            case "image": {
+                const input = document.createElement("input");
+                input.type = "file";
+                input.accept = "image/*";
+
+                input.onchange = () => {
+                    const file = input.files?.[0];
+                    if (!file) {
+                        console.log("No image selected");
+                        return;
+                    }
+
+                    const url = URL.createObjectURL(file);
+                    const img = new Image();
+
+                    img.onload = () => {
+                        // UX: if the image is larger than 50% of the canvas area,
+                        // scale it down to fit within that limit (initially only — user can resize later)
+                        const imgWidth = img.width;
+                        const imgHeight = img.height;
+                        const imgArea = imgWidth * imgHeight;
+
+                        const canvas = canvasRef.current!;
+                        const maxArea = canvas.width * canvas.height * 0.5;
+
+                        let width = imgWidth;
+                        let height = imgHeight;
+
+                        if (imgArea > maxArea) {
+                            const scaleFactor = Math.sqrt(maxArea / imgArea);
+                            width = imgWidth * scaleFactor;
+                            height = imgHeight * scaleFactor;
+                        }
+
+
+                        setObjects(prev => [
+                            ...prev,
+                            {
+                                id: crypto.randomUUID(),
+                                x,
+                                y,
+                                type: "image",
+                                src: url,
+                                width,
+                                height,
+                                rotation: 0,
+                            },
+                        ]);
+                    };
+
+                    img.onerror = () => {
+                        console.error("Failed to load image");
+                    };
+
+                    img.src = url;
+                };
+
+                input.click();
                 break;
+            }
+
             case "location":
                 setObjects(prev => [
                     ...prev,
