@@ -112,7 +112,7 @@ export const useOverlayHandlers = ({
     // Rotation handler
     const handleRotation = useCallback(
         (e: React.PointerEvent<HTMLDivElement>) => {
-            if (obj.type !== "image") return;
+            if (obj.type !== "image" && obj.type !== "text") return;
 
             const rect = e.currentTarget.getBoundingClientRect();
             const centerX = rect.left + rect.width / 2;
@@ -144,7 +144,7 @@ export const useOverlayHandlers = ({
         [
             obj.id,
             obj.type,
-            obj.type === "image" && obj.rotation,
+            obj.type === "image" ? obj.rotation : obj.type === "text" ? obj.rotation : undefined,
             updateObjectRotation,
             startDrag,
         ],
@@ -217,7 +217,7 @@ export const useOverlayHandlers = ({
             case "move":
                 return "move";
             case "rotate":
-                if (obj.type !== "image") return "not-allowed";
+                if (obj.type !== "image" && obj.type !== "text") return "not-allowed";
                 return isDragging ? "grabbing" : "grab";
             case "resize":
                 return "nesw-resize";

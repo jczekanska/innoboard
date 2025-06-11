@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Import Google Fonts for better font availability */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Comic+Neue:wght@400;700&display=swap');
+
 .canvas-frame {
   position: relative;
   overflow: hidden;

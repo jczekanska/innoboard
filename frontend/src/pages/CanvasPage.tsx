@@ -17,14 +17,7 @@ interface DrawEvent {
     size: number;
     text?: string;
 }
-interface TextBox {
-    id: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    text: string;
-}
+
 
 const CanvasPage: React.FC = () => {
 
@@ -54,7 +47,7 @@ const CanvasPage: React.FC = () => {
 
     // ----- Canvas Functionalities ----- //
 
-    const [texts, setTexts] = useState<TextBox[]>([]);
+
 
     const [objects, setObjects] = useState<CanvasObject[]>([])
     const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false);
@@ -86,6 +79,22 @@ const CanvasPage: React.FC = () => {
         const { x, y } = getCanvasXY(canvas, e, state.zoom);
         switch (mode) {
             case "text":
+                setObjects(prev => [
+                    ...prev,
+                    {
+                        id: crypto.randomUUID(),
+                        x,
+                        y,
+                        type: "text",
+                        text: "",
+                        color: state.color,
+                        fontSize: state.fontSize,
+                        fontFamily: state.fontFamily,
+                        width: 200,  // Default width for text box
+                        height: 50,  // Default height for text box
+                        rotation: 0,
+                    },
+                ]);
                 break;
             case "audio": {
                 const input = document.createElement("input");
@@ -292,6 +301,22 @@ const CanvasPage: React.FC = () => {
         setObjects(prevObjects => prevObjects.filter(obj => obj.id !== id));
     }
 
+    function updateObjectText(id: string, text: string) {
+        setObjects(prevObjects =>
+            prevObjects.map(obj =>
+                obj.id === id && obj.type === "text" ? { ...obj, text } : obj
+            )
+        );
+    }
+
+    function updateObjectStyle(id: string, style: { color?: string; fontSize?: number; fontFamily?: string }) {
+        setObjects(prevObjects =>
+            prevObjects.map(obj =>
+                obj.id === id && obj.type === "text" ? { ...obj, ...style } : obj
+            )
+        );
+    }
+
     const handleLocationSelect = (location: { name: string; lat: number; lng: number }) => {
         if (!pendingLocationCoords) return;
 
@@ -346,6 +371,8 @@ const CanvasPage: React.FC = () => {
                                 updateObjectPosition={updateObjectPosition}
                                 updateObjectRotation={updateObjectRotation}
                                 updateObjectDimension={updateObjectDimension}
+                                updateObjectText={updateObjectText}
+                                updateObjectStyle={updateObjectStyle}
                                 deleteObject={deleteObject}
                                 canvasWidth={canvasRef.current.width}
                                 canvasHeight={canvasRef.current.height}

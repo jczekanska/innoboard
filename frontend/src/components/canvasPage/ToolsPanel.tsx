@@ -58,12 +58,15 @@ const ToolsPanel = () => {
                         dispatch({ type: "SET_FONT_FAMILY", payload: event.currentTarget.value })
                     }}
                 >
-                    <option value="Inter">Inter</option>
-                    <option value="Arial">Arial</option>
-                    <option value="Helvetica">Helvetica</option>
-                    <option value="Times New Roman">Times New Roman</option>
-                    <option value="Courier New">Courier New</option>
-                    <option value="Georgia">Georgia</option>
+                    <option value="Inter, system-ui, -apple-system, sans-serif">Inter</option>
+                    <option value="Arial, Helvetica, sans-serif">Arial</option>
+                    <option value="Helvetica, Arial, sans-serif">Helvetica</option>
+                    <option value="'Times New Roman', Times, serif">Times New Roman</option>
+                    <option value="'Courier New', Courier, monospace">Courier New</option>
+                    <option value="Georgia, 'Times New Roman', serif">Georgia</option>
+                    <option value="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">System UI</option>
+                    <option value="'Comic Neue', 'Comic Sans MS', cursive">Comic Sans</option>
+                    <option value="Impact, 'Arial Black', sans-serif">Impact</option>
                 </select>
             </div>
             {/* Font Size */}

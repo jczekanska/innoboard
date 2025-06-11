@@ -46,4 +46,17 @@ export type CanvasObject =
     label: string;
     lat: number;
     lng: number;
+  }
+  | {
+    id: string;
+    type: "text";
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    text: string;
+    color: string;
+    fontSize: number;
+    fontFamily: string;
+    rotation: number;
   };

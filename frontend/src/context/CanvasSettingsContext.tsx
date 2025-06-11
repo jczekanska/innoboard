@@ -25,7 +25,7 @@ const initialState: CanvasSettingsState = {
     size: 33,
     color: "#000000",
     fontSize: 16,
-    fontFamily: "Inter",
+    fontFamily: "Inter, system-ui, -apple-system, sans-serif",
 }
 
 function canvasReducer(state: CanvasSettingsState, action: CanvasAction): CanvasSettingsState {

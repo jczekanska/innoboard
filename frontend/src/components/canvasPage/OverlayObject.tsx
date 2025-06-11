@@ -5,12 +5,15 @@ import { useCanvasSettings } from "@/context/CanvasSettingsContext";
 import { useOverlayHandlers } from "@/hooks/useOverlayHandlers";
 import { OverlayLocation } from "./OverlayLocation";
 import { OverlayAudio } from "./OverlayAudio";
+import { OverlayText } from "./OverlayText";
 
 interface Props {
     obj: CanvasObject;
     updateObjectPosition: (id: string, x: number, y: number) => void;
     updateObjectRotation: (id: string, rotation: number) => void;
     updateObjectDimension: (id: string, width: number, height: number) => void;
+    updateObjectText: (id: string, text: string) => void;
+    updateObjectStyle: (id: string, style: { color?: string; fontSize?: number; fontFamily?: string }) => void;
     deleteObject: (id: string) => void;
     canvasWidth: number;
     canvasHeight: number;
@@ -32,6 +35,8 @@ export const OverlayObject = React.memo<Props>(({
     updateObjectPosition,
     updateObjectRotation,
     updateObjectDimension,
+    updateObjectText,
+    updateObjectStyle,
     deleteObject,
     canvasWidth,
     canvasHeight
@@ -41,7 +46,7 @@ export const OverlayObject = React.memo<Props>(({
 
     const { zoomFactor } = createZoomHelpers(zoom);
 
-    const { getPointerHandler, getCursor, isDeleting } = useOverlayHandlers({
+    const { getPointerHandler, getCursor, isDeleting, isDragging, isRotating, isResizing } = useOverlayHandlers({
         obj,
         mode,
         zoom,
@@ -102,13 +107,34 @@ export const OverlayObject = React.memo<Props>(({
                         height={height}
                     />
                 );
+            case "text":
+                return (
+                    <OverlayText
+                        text={obj.text}
+                        color={obj.color}
+                        fontSize={obj.fontSize}
+                        fontFamily={obj.fontFamily}
+                        width={width}
+                        height={height}
+                        isInteractable={mode === "select"}
+                        mode={mode}
+                        isDragging={isDragging}
+                        isRotating={isRotating}
+                        isResizing={isResizing}
+                        onTextChange={(text) => updateObjectText(obj.id, text)}
+                        onStyleChange={(style) => updateObjectStyle(obj.id, style)}
+                    />
+                );
             default:
                 return null;
         }
     };
 
     const transformed = useMemo(() => getTransformedProperties(), [obj, zoomFactor, canvasWidth, canvasHeight]);
-    const rotation = obj.type === "image" ? obj.rotation || 0 : 0;
+    const rotation = (obj.type === "image" || obj.type === "text") ? obj.rotation || 0 : 0;
+
+    // Disable pointer events for draw/erase modes to allow painting through
+    const shouldDisablePointerEvents = mode === 'draw' || mode === 'erase';
 
     return (
         <div
@@ -118,9 +144,10 @@ export const OverlayObject = React.memo<Props>(({
                 left: transformed.x,
                 top: transformed.y,
                 cursor: getCursor(),
+                pointerEvents: shouldDisablePointerEvents ? 'none' : 'auto',
             }}
             draggable={false}
-            onPointerDown={getPointerHandler()}
+            onPointerDown={shouldDisablePointerEvents ? undefined : getPointerHandler()}
         >
             {renderObjectContent(transformed.width, transformed.height)}
         </div>
