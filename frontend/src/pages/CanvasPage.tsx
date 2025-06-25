@@ -7,7 +7,7 @@ import React, {
   useContext,
 } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Rnd } from "react-rnd";
+import { Rnd, ResizeHandleStyles } from "react-rnd";
 import { AuthContext } from "../context/AuthContext";
 
 import {
@@ -20,7 +20,7 @@ import {
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 
-type Mode = "draw" | "erase" | "text";
+type Mode = "draw" | "erase" | "text" | "move";
 interface DrawEvent {
   x: number;
   y: number;
@@ -136,15 +136,23 @@ const CanvasPage: React.FC = () => {
     const handleDown = (e: MouseEvent) => {
       const { x, y } = toCoords(e);
       if (mode === "text") {
-        const input = prompt("Enter text (max 2000 chars):")?.slice(0, 2000);
-        if (!input) return;
-        const id = crypto.randomUUID();
-        const box: TextBox = { id, x, y, width: 150, height: 50, text: input, color };
+        const txt = prompt("Enter text (max 2000 chars):")?.slice(0, 2000);
+        if (!txt) return;
+        const box: TextBox = {
+          id: crypto.randomUUID(),
+          x,
+          y,
+          width: 150,
+          height: 50,
+          text: txt,
+          color,
+        };
         const nt = [...texts, box];
         setTexts(nt);
-        saveContent(nt);
+        save(nt);
         return;
       }
+      if (mode !== "draw" && mode !== "erase") return;
       drawing = true;
       ctx.beginPath();
       ctx.moveTo(x, y);
@@ -159,8 +167,9 @@ const CanvasPage: React.FC = () => {
         mode === "erase" ? "destination-out" : "source-over";
       ctx.lineTo(x, y);
       ctx.stroke();
-      const evt: DrawEvent = { x, y, mode, color, size };
-      wsRef.current?.send(JSON.stringify(evt));
+      wsRef.current!.send(
+        JSON.stringify({ x, y, mode, color, size } as DrawEvent)
+      );
       setIsDirty(true);
     };
 
@@ -182,40 +191,48 @@ const CanvasPage: React.FC = () => {
     };
   }, [mode, color, size, texts]);
 
-  const saveContent = (newTexts: TextBox[] = texts) => {
-    const image = canvasRef.current?.toDataURL() || contentImage;
+  const save = (nt: TextBox[] = texts) => {
+    const img = canvasRef.current?.toDataURL() || contentImage;
     fetch(`/api/canvases/${id}/data`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ content: { image, texts: newTexts } }),
+      body: JSON.stringify({ content: { image: img, texts: nt } }),
     }).catch(console.error);
-    setContentImage(image);
+    setContentImage(img);
     setIsDirty(false);
   };
 
   const deleteBox = (boxId: string) => {
     const nt = texts.filter((t) => t.id !== boxId);
     setTexts(nt);
-    saveContent(nt);
+    save(nt);
+  };
+  const goDash = () => {
+    if (isDirty && !window.confirm("Unsaved changes – discard?")) return;
+    navigate("/dashboard");
   };
 
-  const handleDashboard = () => {
-    if (isDirty && !window.confirm("You have unsaved changes. Discard and exit?")) {
-      return;
-    }
-    navigate("/dashboard");
+  const handleStyles: ResizeHandleStyles = {
+    top:    { height: 10, top: -5, cursor: "ns-resize" },
+    bottom: { height: 10, bottom: -5, cursor: "ns-resize" },
+    left:   { width: 10, left: -5, cursor: "ew-resize" },
+    right:  { width: 10, right: -5, cursor: "ew-resize" },
+    topLeft:     { width: 10, height: 10, left: -5, top: -5, cursor: "nwse-resize" },
+    topRight:    { width: 10, height: 10, right: -5, top: -5, cursor: "nesw-resize" },
+    bottomLeft:  { width: 10, height: 10, left: -5, bottom: -5, cursor: "nesw-resize" },
+    bottomRight: { width: 10, height: 10, right: -5, bottom: -5, cursor: "nwse-resize" },
   };
 
   return (
     <Card className="max-w-4xl mx-auto mt-10">
-      <CardHeader className="flex items-center justify-between">
+      <CardHeader className="flex justify-between items-center">
         <CardTitle>{canvasInfo?.name}</CardTitle>
         <div className="flex space-x-2">
-          <Button onClick={() => saveContent()}>Save</Button>
-          <Button variant="ghost" onClick={handleDashboard}>
+          <Button onClick={() => save()}>Save</Button>
+          <Button variant="ghost" onClick={goDash}>
             Dashboard
           </Button>
         </div>
@@ -226,18 +243,14 @@ const CanvasPage: React.FC = () => {
           <Input
             type="color"
             value={color}
-            onChange={(e: ChangeEvent<HTMLInputElement>) =>
-              setColor(e.target.value)
-            }
+            onChange={(e) => setColor(e.target.value)}
           />
           <Input
             type="range"
             min={1}
             max={50}
             value={size}
-            onChange={(e: ChangeEvent<HTMLInputElement>) =>
-              setSize(Number(e.target.value))
-            }
+            onChange={(e) => setSize(Number(e.target.value))}
           />
           <Button
             variant={mode === "draw" ? "default" : "outline"}
@@ -257,6 +270,12 @@ const CanvasPage: React.FC = () => {
           >
             🔤 Text
           </Button>
+          <Button
+            variant={mode === "move" ? "default" : "outline"}
+            onClick={() => setMode("move")}
+          >
+            📦 Move
+          </Button>
         </div>
 
         <div className="canvas-frame">
@@ -270,6 +289,12 @@ const CanvasPage: React.FC = () => {
               size={{ width: box.width, height: box.height }}
               position={{ x: box.x, y: box.y }}
               bounds="parent"
+              style={{ pointerEvents: mode === "move" ? "auto" : "none" }}
+              disableDragging={mode !== "move"}
+              enableResizing={mode === "move"}
+              resizeHandleStyles={
+                mode === "move" ? handleStyles : {}
+              }
               onDragStop={(_, d) => {
                 const nt = texts.map((t) =>
                   t.id === box.id ? { ...t, x: d.x, y: d.y } : t
@@ -294,38 +319,47 @@ const CanvasPage: React.FC = () => {
               }}
               onClick={() => setSelectedId(box.id)}
             >
-              <div className="text-box">
+              <div className="text-box" style={{ width: "100%", height: "100%" }}>
                 <textarea
                   value={box.text}
                   maxLength={2000}
+                  readOnly={mode !== "move"}
                   onChange={(e) => {
-                    const newText = e.target.value.slice(0, 2000);
+                    const t = e.target.value.slice(0, 2000);
                     setTexts((ts) =>
-                      ts.map((t) =>
-                        t.id === box.id ? { ...t, text: newText } : t
-                      )
+                      ts.map((x) => (x.id === box.id ? { ...x, text: t } : x))
                     );
                     setIsDirty(true);
                   }}
-                  onBlur={() => saveContent()}
-                  style={{ color: box.color }}
+                  onBlur={() => save()}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    boxSizing: "border-box",
+                    border: mode === "move" ? undefined : "none",
+                    background: mode === "move" ? undefined : "transparent",
+                    color: box.color,
+                    resize: "none",
+                  }}
                 />
-                {selectedId === box.id && (
+                {mode === "move" && selectedId === box.id && (
                   <button
                     className="delete-btn"
                     onClick={() => {
                       deleteBox(box.id);
                       setSelectedId(null);
                     }}
-                >
-                  ❌
-                </button>
+                  >
+                    ❌
+                  </button>
                 )}
               </div>
             </Rnd>
           ))}
         </div>
       </CardContent>
+      
+      <CardFooter className="flex justify-end">{/*…*/}</CardFooter>
     </Card>
   );
 };

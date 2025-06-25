@@ -23,7 +23,7 @@ No user-friendly UI yet :)
 - [x] As an editor, I must be able to enter text on the canvas, so that I can add notes, labels, or ideas to my workspace.
 - [x] As a editor, I must be able to draw on the canvas, so that I can sketch ideas or annotate visually.
 - [x] As an editor, I must be able to erase drawings on the canvas, so that I can correct mistakes or clean up my workspace.
-- [ ] As an editor, I must be able to move and resize things on my canvas, so that I can organize my workspace however I want.
+- [x] As an editor, I must be able to move and resize things on my canvas, so that I can organize my workspace however I want.
 - [ ] As a canvas owner, I must be able to share my canvas, so that I can collaborate with others in real time.
 - [ ] As a logged user,​ I must be able to join a collaborative canvas,​ so that I can work on it with others in real time.
 - [ ] As an editor,​ I should be able to add and click hyperlinks in text boxes,​ so that I can reference and access external resources easily.
