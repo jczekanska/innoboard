@@ -99,8 +99,17 @@ async def api_create_canvas(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    name = payload.name.strip() or "Untitled Canvas"
+    raw = (payload.name or "").strip()
+    # Use provided name or fall back to ISO timestamp
+    name = raw or datetime.utcnow().isoformat()
     return await crud.create_canvas(db, current_user.id, name)
+
+@app.get("/canvases", response_model=List[schemas.Canvas])
+async def api_list_canvases(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    return await crud.get_canvases_by_owner(db, current_user.id)
 
 @app.get("/canvases", response_model=List[schemas.Canvas])
 async def api_list_canvases(

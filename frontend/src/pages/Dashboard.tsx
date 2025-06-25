@@ -1,3 +1,5 @@
+// src/pages/Dashboard.tsx
+
 import React, { useContext, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
@@ -51,6 +53,7 @@ const Dashboard: React.FC = () => {
     loadJoined();
   }, [token]);
 
+  // ⚠️ Send an *empty* body so `name` is omitted (i.e. payload.name=None)
   const handleNew = () =>
     fetch("/api/canvases", {
       method: "POST",
@@ -58,7 +61,7 @@ const Dashboard: React.FC = () => {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ name: "" }),
+      body: JSON.stringify({}),  // <-- no name field at all
     })
       .then((r) => r.json())
       .then((c: Canvas) => navigate(`/canvas/${c.id}`))
@@ -137,7 +140,7 @@ const Dashboard: React.FC = () => {
               {myCanvases.map((c) => (
                 <ListItem key={c.id} className="flex items-center justify-between">
                   <Button variant="link" onClick={() => navigate(`/canvas/${c.id}`)}>
-                    {c.name || "(untitled)"}
+                    {c.name}
                   </Button>
                   <div className="flex space-x-2">
                     <Button variant="outline" onClick={() => handleRename(c)}>

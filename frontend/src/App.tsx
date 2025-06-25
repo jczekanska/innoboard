@@ -5,13 +5,15 @@ import Dashboard from './pages/Dashboard';
 import CanvasPage from './pages/CanvasPage';
 import JoinPage from './pages/JoinPage';
 import { AuthContext } from './context/AuthContext';
-import './index.css';  
+import './index.css';
+import { CanvasSettingsProvider } from './context/CanvasSettingsContext';
 
 const App: React.FC = () => {
   const { token } = useContext(AuthContext);
   return (
+    <CanvasSettingsProvider>
     <Routes>
-      <Route
+        <Route
         path="/"
         element={token ? <Navigate to="/dashboard" replace /> : <AuthPage />}
       />
@@ -25,6 +27,7 @@ const App: React.FC = () => {
       />
       <Route path="/join/:token" element={token ? <JoinPage/> : <Navigate to="/" replace />} />
     </Routes>
+    </CanvasSettingsProvider>
   );
 };
 
