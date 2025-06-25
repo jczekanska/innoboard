@@ -302,6 +302,7 @@ const CanvasPage: React.FC = () => {
               />
               {texts.map((box) => (
                 <Rnd
+                  style={{ pointerEvents: mode === "move" ? "auto" : "none" }}
                   key={box.id}
                   size={{ width: box.width, height: box.height }}
                   position={{ x: box.x, y: box.y }}
@@ -337,6 +338,7 @@ const CanvasPage: React.FC = () => {
                   }}
                 >
                   <textarea
+                    style={{ pointerEvents: mode === "move" ? "auto" : "none" }}
                     value={box.text}
                     readOnly={mode !== "move"}
                     className="w-full h-full p-1 resize-none bg-white border"
