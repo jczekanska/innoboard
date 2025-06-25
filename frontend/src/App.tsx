@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import AuthPage from './pages/AuthPage';
 import Dashboard from './pages/Dashboard';
 import CanvasPage from './pages/CanvasPage';
+import JoinPage from './pages/JoinPage';
 import { AuthContext } from './context/AuthContext';
 import './index.css';  
 
@@ -22,6 +23,7 @@ const App: React.FC = () => {
         path="/canvas/:id"
         element={token ? <CanvasPage /> : <Navigate to="/" replace />}
       />
+      <Route path="/join/:token" element={token ? <JoinPage/> : <Navigate to="/" replace />} />
     </Routes>
   );
 };
