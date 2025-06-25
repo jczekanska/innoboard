@@ -4,6 +4,7 @@ import React, {
   useEffect,
   MouseEvent,
   useContext,
+  ReactNode,
 } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { Rnd, ResizeHandleStyles } from "react-rnd"
@@ -23,11 +24,10 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 
-type Mode = "draw" | "erase" | "text" | "move"
+type Mode = "draw" | "erase" | "text" | "move" | "select"
 
 interface TextBox {
   id: string
@@ -46,12 +46,32 @@ interface Stroke {
   path: { x: number; y: number }[]
 }
 
+function linkifyText(text: string): ReactNode[] {
+  const urlRegex = /(https?:\/\/[^\s]+)/g
+  const parts = text.split(urlRegex)
+  return parts.map((part, i) =>
+    urlRegex.test(part) ? (
+      <a
+        key={i}
+        href={part}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="underline text-blue-600"
+      >
+        {part}
+      </a>
+    ) : (
+      <span key={i}>{part}</span>
+    )
+  )
+}
+
 const CanvasPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { token } = useContext(AuthContext)
 
-  const { state } = useCanvasSettings()
+  const { state, dispatch } = useCanvasSettings()
   const { mode, color, size, zoom } = state
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -242,6 +262,37 @@ const CanvasPage: React.FC = () => {
     setIsDirty(false)
   }
 
+  function updateTextContent(id: string, text: string) {
+    setTexts((ts) => ts.map((b) => (b.id === id ? { ...b, text } : b)))
+    setIsDirty(true)
+  }
+  function updateTextPosition(box: TextBox, d: { x: number; y: number }) {
+    const updated = { ...box, x: d.x, y: d.y }
+    setTexts((ts) => ts.map((t) => (t.id === box.id ? updated : t)))
+    wsRef.current?.send(
+      JSON.stringify({ type: "textMove", payload: updated })
+    )
+    setIsDirty(true)
+  }
+  function updateTextResize(
+    box: TextBox,
+    ref: HTMLElement,
+    d: { x: number; y: number }
+  ) {
+    const updated = {
+      ...box,
+      width: parseInt(ref.style.width),
+      height: parseInt(ref.style.height),
+      x: d.x,
+      y: d.y,
+    }
+    setTexts((ts) => ts.map((t) => (t.id === box.id ? updated : t)))
+    wsRef.current?.send(
+      JSON.stringify({ type: "textResize", payload: updated })
+    )
+    setIsDirty(true)
+  }
+
   async function onInvite(e: React.FormEvent) {
     e.preventDefault()
     const email = (e.currentTarget as any).email.value as string
@@ -302,7 +353,6 @@ const CanvasPage: React.FC = () => {
               />
               {texts.map((box) => (
                 <Rnd
-                  style={{ pointerEvents: mode === "move" ? "auto" : "none" }}
                   key={box.id}
                   size={{ width: box.width, height: box.height }}
                   position={{ x: box.x, y: box.y }}
@@ -310,48 +360,35 @@ const CanvasPage: React.FC = () => {
                   disableDragging={mode !== "move"}
                   enableResizing={mode === "move"}
                   resizeHandleStyles={mode === "move" ? textHandles : {}}
-                  onDragStop={(_, d) => {
-                    const updated = { ...box, x: d.x, y: d.y }
-                    setTexts((ts) =>
-                      ts.map((t) => (t.id === box.id ? updated : t))
-                    )
-                    wsRef.current?.send(
-                      JSON.stringify({ type: "textMove", payload: updated })
-                    )
-                    setIsDirty(true)
+                  style={{
+                    pointerEvents:
+                      mode === "move" || mode === "select"
+                        ? "auto"
+                        : "none",
                   }}
-                  onResizeStop={(_, __, ref, ___, d) => {
-                    const updated = {
-                      ...box,
-                      width: parseInt(ref.style.width),
-                      height: parseInt(ref.style.height),
-                      x: d.x,
-                      y: d.y,
-                    }
-                    setTexts((ts) =>
-                      ts.map((t) => (t.id === box.id ? updated : t))
-                    )
-                    wsRef.current?.send(
-                      JSON.stringify({ type: "textResize", payload: updated })
-                    )
-                    setIsDirty(true)
-                  }}
+                  onDragStop={(_, d) => updateTextPosition(box, d)}
+                  onResizeStop={(_, __, ref, ___, d) =>
+                    updateTextResize(box, ref, d)
+                  }
                 >
-                  <textarea
-                    style={{ pointerEvents: mode === "move" ? "auto" : "none" }}
-                    value={box.text}
-                    readOnly={mode !== "move"}
-                    className="w-full h-full p-1 resize-none bg-white border"
-                    onChange={(e) => {
-                      const t = e.target.value.slice(0, 2000)
-                      setTexts((ts) =>
-                        ts.map((b) => (b.id === box.id ? { ...b, text: t } : b))
-                      )
-                      setIsDirty(true)
-                    }}
-                    onBlur={saveContent}
-                    style={{ color: box.color }}
-                  />
+                  {mode === "move" ? (
+                    <textarea
+                      className="w-full h-full p-1 resize-none bg-white border"
+                      style={{ pointerEvents: "auto", color: box.color }}
+                      value={box.text}
+                      onChange={(e) =>
+                        updateTextContent(box.id, e.target.value)
+                      }
+                      onBlur={saveContent}
+                    />
+                  ) : (
+                    <div
+                      className="w-full h-full p-1 bg-transparent overflow-auto"
+                      style={{ color: box.color }}
+                    >
+                      {linkifyText(box.text)}
+                    </div>
+                  )}
                 </Rnd>
               ))}
             </div>
@@ -361,13 +398,17 @@ const CanvasPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Invite dialog shared by both header & toolbar */}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Invite someone</DialogTitle>
         </DialogHeader>
         <form onSubmit={onInvite} className="space-y-4">
-          <Input name="email" type="email" placeholder="friend@example.com" required />
+          <Input
+            name="email"
+            type="email"
+            placeholder="friend@example.com"
+            required
+          />
           <DialogFooter>
             <Button type="submit">Send Invite</Button>
           </DialogFooter>

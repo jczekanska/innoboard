@@ -24,25 +24,29 @@ import { DialogTrigger } from "@/components/ui/dialog"
 
 export type ToolbarProps = {
   onSave: () => void
-  onShare: () => void  // no-op, trigger is handled by DialogTrigger
+  onShare: () => void
   onDashboard: () => void
 }
 
 const MODE_ICONS: Record<Mode, React.FC> = {
-    draw: PencilLine,
-    erase: Eraser,
-    select: MousePointer,
-    move: MoveIcon,
-    resize: Scaling,
-    rotate: RotateCw,
-    delete: Trash2,
-    text: Type,
-    image: Image,
-    audio: FileAudio,
-    location: MapPin,
+  draw: PencilLine,
+  erase: Eraser,
+  select: MousePointer,
+  move: MoveIcon, // move also allows resizing
+  // resize: Scaling,
+  rotate: RotateCw,
+  delete: Trash2,
+  text: Type,
+  image: Image,
+  audio: FileAudio,
+  location: MapPin,
 }
 
-const Toolbar: React.FC<ToolbarProps> = ({ onSave, onShare, onDashboard }) => {
+const Toolbar: React.FC<ToolbarProps> = ({
+  onSave,
+  onShare,
+  onDashboard,
+}) => {
   const { state, dispatch } = useCanvasSettings()
   const { mode, zoom } = state
 
@@ -82,12 +86,9 @@ const Toolbar: React.FC<ToolbarProps> = ({ onSave, onShare, onDashboard }) => {
       {/* Save / Share / Dashboard */}
       <div className="border-t pt-3 space-y-3 flex flex-col items-center">
         <ToolsButton icon={Save} onClick={onSave} />
-
-        {/* Share icon wrapped in DialogTrigger */}
         <DialogTrigger asChild>
           <ToolsButton icon={Share2} />
         </DialogTrigger>
-
         <ToolsButton icon={Home} onClick={onDashboard} />
       </div>
     </aside>
