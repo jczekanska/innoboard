@@ -76,3 +76,7 @@ async def save_canvas_data(db: AsyncSession, canvas_id: int, data: dict):
     await db.commit()
     await db.refresh(canvas)
     return canvas
+
+async def get_invitation_by_token(db: AsyncSession, token: str):
+    result = await db.execute(select(Invitation).where(Invitation.token == token))
+    return result.scalars().first()

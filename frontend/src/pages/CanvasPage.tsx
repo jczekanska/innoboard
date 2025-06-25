@@ -1,398 +1,389 @@
-import React, { useState, useRef, useEffect, useContext } from "react"
+import React, {
+  useRef,
+  useState,
+  useEffect,
+  MouseEvent,
+  useContext,
+} from "react"
+import { useParams, useNavigate } from "react-router-dom"
+import { Rnd, ResizeHandleStyles } from "react-rnd"
+
 import { AuthContext } from "@/context/AuthContext"
-import { useNavigate, useParams } from "react-router-dom"
 import Header from "@/components/canvasPage/Header"
-import { useCanvasSettings } from "@/context/CanvasSettingsContext"
-import Toolbar from "@/components/canvasPage/Toolbar"
+import Toolbar, { ToolbarProps } from "@/components/canvasPage/Toolbar"
 import ToolsPanel from "@/components/canvasPage/ToolsPanel"
-import { CanvasObject, Mode } from "@/types/canvas"
-import { OverlayObject } from "@/components/canvasPage/OverlayObject"
 import { LocationPicker } from "@/components/canvasPage/LocationPicker"
 
-interface DrawEvent {
-    x: number;
-    y: number;
-    mode: Mode
-    color: string;
-    size: number;
-    text?: string;
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { useCanvasSettings } from "@/context/CanvasSettingsContext"
+
+type Mode = "draw" | "erase" | "text" | "move"
+
+interface TextBox {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+  text: string
+  color: string
 }
 
+interface Stroke {
+  mode: Mode
+  color: string
+  size: number
+  path: { x: number; y: number }[]
+}
 
 const CanvasPage: React.FC = () => {
+  const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const { token } = useContext(AuthContext)
+  const { state } = useCanvasSettings()
+  const { mode, color, size, zoom } = state
 
-    // General
-    const navigate = useNavigate();
+  // refs & state
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const wsRef = useRef<WebSocket>()
+  const [canvasInfo, setCanvasInfo] = useState<{ name: string } | null>(null)
+  const [texts, setTexts] = useState<TextBox[]>([])
+  const [strokes, setStrokes] = useState<Stroke[]>([])
+  const [isDirty, setIsDirty] = useState(false)
+  const [locationOpen, setLocationOpen] = useState(false)
 
-    // Authorization
-    const { token } = useContext(AuthContext);
-    const { id } = useParams<{ id: string }>();
-    const [canvasInfo, setCanvasInfo] = useState<{ name: string } | null>(null);
+  // — 1) Load canvas metadata
+  useEffect(() => {
+    if (!token || !id) return
+    fetch(`/api/canvases/${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then(setCanvasInfo)
+      .catch(() => navigate("/dashboard"))
+  }, [id, token, navigate])
 
-    // we need to set up a way to get canvas dimensions from the db
-    useEffect(() => {
-        if (!token || !id) return;
-        fetch(`/api/canvases/${id}`, {
-            headers: { Authorization: `Bearer ${token}` },
+  // — 2) Load saved content
+  useEffect(() => {
+    if (!token || !id) return
+    fetch(`/api/canvases/${id}/data`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then(({ content }) => {
+        setTexts(content.texts || [])
+        setStrokes(content.strokes || [])
+        if (content.image && canvasRef.current) {
+          const ctx = canvasRef.current.getContext("2d")!
+          const img = new Image()
+          img.onload = () => {
+            ctx.clearRect(0, 0, 800, 600)
+            ctx.drawImage(img, 0, 0)
+            replayStrokes(ctx, content.strokes || [])
+          }
+          img.src = content.image
+        }
+      })
+      .catch(console.error)
+    setIsDirty(false)
+  }, [id, token])
+
+  // — 3) WebSocket for live updates
+  useEffect(() => {
+    if (!token || !id) return
+    const ws = new WebSocket(`ws://localhost:8000/ws/canvas/${id}?token=${token}`)
+    wsRef.current = ws
+    ws.onmessage = ({ data }) => handleRemote(JSON.parse(data))
+    return () => ws.close()
+  }, [id, token])
+
+  // handle incoming messages
+  function handleRemote(msg: any) {
+    if (msg.type === "draw") {
+      const { x, y, color: c, size: s, mode: m } = msg.payload
+      const ctx = canvasRef.current?.getContext("2d")
+      if (!ctx) return
+      ctx.lineWidth = s
+      ctx.strokeStyle = c
+      ctx.globalCompositeOperation = m === "erase" ? "destination-out" : "source-over"
+      ctx.lineTo(x, y)
+      ctx.stroke()
+      setIsDirty(true)
+    }
+
+    if (msg.type === "textAdd") {
+      setTexts((ts) => [...ts, msg.payload])
+      setIsDirty(true)
+    }
+
+    if (msg.type === "textMove" || msg.type === "textResize") {
+      setTexts((ts) => ts.map((t) => (t.id === msg.payload.id ? msg.payload : t)))
+      setIsDirty(true)
+    }
+  }
+
+  // replay existing strokes
+  function replayStrokes(ctx: CanvasRenderingContext2D, all: Stroke[]) {
+    all.forEach((st) => {
+      ctx.beginPath()
+      ctx.lineWidth = st.size
+      ctx.strokeStyle = st.color
+      ctx.globalCompositeOperation = st.mode === "erase" ? "destination-out" : "source-over"
+      st.path.forEach((pt, i) => {
+        if (i === 0) ctx.moveTo(pt.x, pt.y)
+        else ctx.lineTo(pt.x, pt.y)
+      })
+      ctx.stroke()
+    })
+  }
+
+  // — 4) Local draw/text logic
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext("2d")!
+    let drawing = false
+    let currentStroke: Stroke | null = null
+
+    function toCanvas(e: MouseEvent) {
+      const r = canvas.getBoundingClientRect()
+      return {
+        x: ((e.clientX - r.left) * 100) / zoom,
+        y: ((e.clientY - r.top) * 100) / zoom,
+      }
+    }
+
+    const onDown = (e: MouseEvent) => {
+      const { x, y } = toCanvas(e)
+      if (mode === "text") {
+        const txt = prompt("Enter text")?.slice(0, 2000)
+        if (!txt) return
+        const box: TextBox = {
+          id: crypto.randomUUID(),
+          x,
+          y,
+          width: 150,
+          height: 50,
+          text: txt,
+          color,
+        }
+        setTexts((ts) => [...ts, box])
+        wsRef.current?.send(JSON.stringify({ type: "textAdd", payload: box }))
+        setIsDirty(true)
+        return
+      }
+
+      if (mode === "draw" || mode === "erase") {
+        drawing = true
+        currentStroke = { mode, color, size, path: [{ x, y }] }
+        ctx.beginPath()
+        ctx.moveTo(x, y)
+      }
+    }
+
+    const onMove = (e: MouseEvent) => {
+      if (!drawing || !currentStroke) return
+      const { x, y } = toCanvas(e)
+      ctx.lineWidth = currentStroke.size
+      ctx.strokeStyle = currentStroke.color
+      ctx.globalCompositeOperation =
+        currentStroke.mode === "erase" ? "destination-out" : "source-over"
+      ctx.lineTo(x, y)
+      ctx.stroke()
+      currentStroke.path.push({ x, y })
+      wsRef.current?.send(
+        JSON.stringify({
+          type: "draw",
+          payload: { x, y, mode, color, size },
         })
-            .then((r) => (r.ok ? r.json() : Promise.reject()))
-            .then(setCanvasInfo)
-            .catch(() => navigate("/dashboard"));
-    }, [id, token, navigate]);
+      )
+      setIsDirty(true)
+    }
 
-    // ----- Interface functionalities -----
+    const onUp = () => {
+      if (drawing && currentStroke) {
+        setStrokes((prev) => [...prev, currentStroke!])
+        currentStroke = null
+      }
+      drawing = false
+      ctx.closePath()
+    }
 
-    const { state, dispatch } = useCanvasSettings()
-    console.log(state)
+    canvas.addEventListener("mousedown", onDown as any)
+    canvas.addEventListener("mousemove", onMove as any)
+    canvas.addEventListener("mouseup", onUp as any)
+    canvas.addEventListener("mouseleave", onUp as any)
 
-    // ----- Canvas Functionalities ----- //
+    return () => {
+      canvas.removeEventListener("mousedown", onDown as any)
+      canvas.removeEventListener("mousemove", onMove as any)
+      canvas.removeEventListener("mouseup", onUp as any)
+      canvas.removeEventListener("mouseleave", onUp as any)
+    }
+  }, [mode, color, size, zoom])
 
+  // Save handler
+  function saveContent() {
+    const image = canvasRef.current?.toDataURL() ?? null
+    fetch(`/api/canvases/${id}/data`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ content: { image, texts, strokes } }),
+    })
+    setIsDirty(false)
+  }
 
+  // Invite form submit
+  async function onInvite(e: React.FormEvent) {
+    e.preventDefault()
+    const email = (e.currentTarget as any).email.value as string
+    const resp = await fetch(`/api/canvases/${id}/invite`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ invitee_email: email }),
+    })
+    const { token: inviteToken } = await resp.json()
+    const link = `${window.location.origin}/join/${inviteToken}`
+    await navigator.clipboard.writeText(link)
+    alert(`Invite link copied:\n${link}`)
+  }
 
-    const [objects, setObjects] = useState<CanvasObject[]>([])
-    const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false);
-    const [pendingLocationCoords, setPendingLocationCoords] = useState<{ x: number; y: number } | null>(null);
+  // Toolbar props
+  const toolbarProps: ToolbarProps = {
+    onSave: saveContent,
+    onShare: () => {}, // no-op, trigger handled via DialogTrigger
+    onDashboard: () => {
+      if (isDirty && !confirm("Discard unsaved changes?")) return
+      navigate("/dashboard")
+    },
+  }
 
-    console.log(objects)
+  // Resize handles
+  const textHandles: ResizeHandleStyles = {
+    top: { height: 10, top: -5, cursor: "ns-resize" },
+    bottom: { height: 10, bottom: -5, cursor: "ns-resize" },
+    left: { width: 10, left: -5, cursor: "ew-resize" },
+    right: { width: 10, right: -5, cursor: "ew-resize" },
+    topLeft: { width: 10, height: 10, left: -5, top: -5, cursor: "nwse-resize" },
+    topRight: { width: 10, height: 10, right: -5, top: -5, cursor: "nesw-resize" },
+    bottomLeft: { width: 10, height: 10, left: -5, bottom: -5, cursor: "nesw-resize" },
+    bottomRight: { width: 10, height: 10, right: -5, bottom: -5, cursor: "nwse-resize" },
+  }
 
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    // const socketRef = useRef<WebSocket>();
+  const onRename = async (newName: string) => {
+    await fetch(`/api/canvases/${id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ name: newName }),
+    })
+    setCanvasInfo((ci) => ci ? { ...ci, name: newName } : { name: newName })
+  }
 
-    // Keeps track of the last cursor position to avoid unexpected jumps
-    // when the pointer leaves and re-enters the canvas during drawing.
-    const lastPoint = useRef<{ x: number; y: number } | null>(null);
+  return (
+    <Dialog>
+      {/* Entire page wrapped in single Dialog provider */}
+      <div className="flex flex-col h-screen bg-gray-100">
+        <Header
+          onBack={() => navigate("/dashboard")}
+          name={canvasInfo?.name ?? "(untitled)"}
+          onRename={onRename}
+        />
 
-    // Converts mouse event coordinates to canvas-relative coordinates,
-    // accounting for canvas position and current zoom level.
-    const getCanvasXY = (canvas: HTMLCanvasElement, e: MouseEvent, zoom: number) => {
-        const r = canvas.getBoundingClientRect();
-        return {
-            x: (e.clientX - r.left) * (100 / zoom),
-            y: (e.clientY - r.top) * (100 / zoom),
-        };
-    };
+        <div className="flex flex-1 pt-13">
+          <Toolbar {...toolbarProps} />
 
-    // // This section sets up mouse event handlers for canvas interaction
-
-    // I'll add this for the text boxes & whatnot
-    const handleMouseClick = (canvas: HTMLCanvasElement, mode: Mode) => (e: MouseEvent) => {
-        const { x, y } = getCanvasXY(canvas, e, state.zoom);
-        switch (mode) {
-            case "text":
-                setObjects(prev => [
-                    ...prev,
-                    {
-                        id: crypto.randomUUID(),
-                        x,
-                        y,
-                        type: "text",
-                        text: "",
-                        color: state.color,
-                        fontSize: state.fontSize,
-                        fontFamily: state.fontFamily,
-                        width: 200,  // Default width for text box
-                        height: 50,  // Default height for text box
-                        rotation: 0,
-                    },
-                ]);
-                break;
-            case "audio": {
-                const input = document.createElement("input");
-                input.type = "file";
-                input.accept = "audio/*";
-
-                input.onchange = () => {
-                    const file = input.files?.[0];
-                    if (!file) {
-                        console.log("No audio file selected");
-                        return;
+          <main className="flex-1 relative overflow-auto grid place-items-center p-6">
+            <div className="relative">
+              <canvas
+                ref={canvasRef}
+                width={800}
+                height={600}
+                style={{ transform: `scale(${zoom / 100})` }}
+                className="bg-white border"
+              />
+              {texts.map((box) => (
+                <Rnd
+                  key={box.id}
+                  size={{ width: box.width, height: box.height }}
+                  position={{ x: box.x, y: box.y }}
+                  bounds="parent"
+                  disableDragging={mode !== "move"}
+                  enableResizing={mode === "move"}
+                  resizeHandleStyles={mode === "move" ? textHandles : {}}
+                  onDragStop={(_, d) => {
+                    const updated = { ...box, x: d.x, y: d.y }
+                    setTexts((ts) => ts.map((t) => (t.id === box.id ? updated : t)))
+                    wsRef.current?.send(JSON.stringify({ type: "textMove", payload: updated }))
+                    setIsDirty(true)
+                  }}
+                  onResizeStop={(_, __, ref, ___, d) => {
+                    const updated = {
+                      ...box,
+                      width: parseInt(ref.style.width),
+                      height: parseInt(ref.style.height),
+                      x: d.x,
+                      y: d.y,
                     }
-
-                    const url = URL.createObjectURL(file);
-
-                    setObjects(prev => [
-                        ...prev,
-                        {
-                            id: crypto.randomUUID(),
-                            x,
-                            y,
-                            type: "audio",
-                            url: url,
-                            filename: file.name,
-                            width: 250,  // Default width for audio player
-                            height: 80,  // Default height for audio player
-                        },
-                    ]);
-                };
-
-                input.click();
-                break;
-            }
-            case "image": {
-                const input = document.createElement("input");
-                input.type = "file";
-                input.accept = "image/*";
-
-                input.onchange = () => {
-                    const file = input.files?.[0];
-                    if (!file) {
-                        console.log("No image selected");
-                        return;
-                    }
-
-                    const url = URL.createObjectURL(file);
-                    const img = new Image();
-
-                    img.onload = () => {
-                        // UX: if the image is larger than 50% of the canvas area,
-                        // scale it down to fit within that limit (initially only — user can resize later)
-                        const imgWidth = img.width;
-                        const imgHeight = img.height;
-                        const imgArea = imgWidth * imgHeight;
-
-                        const canvas = canvasRef.current!;
-                        const maxArea = canvas.width * canvas.height * 0.5;
-
-                        let width = imgWidth;
-                        let height = imgHeight;
-
-                        if (imgArea > maxArea) {
-                            const scaleFactor = Math.sqrt(maxArea / imgArea);
-                            width = imgWidth * scaleFactor;
-                            height = imgHeight * scaleFactor;
-                        }
-
-
-                        setObjects(prev => [
-                            ...prev,
-                            {
-                                id: crypto.randomUUID(),
-                                x,
-                                y,
-                                type: "image",
-                                src: url,
-                                width,
-                                height,
-                                rotation: 0,
-                            },
-                        ]);
-                    };
-
-                    img.onerror = () => {
-                        console.error("Failed to load image");
-                    };
-
-                    img.src = url;
-                };
-
-                input.click();
-                break;
-            }
-
-            case "location":
-                setPendingLocationCoords({ x, y });
-                setIsLocationPickerOpen(true);
-                break;
-            default:
-                // do nothing?
-                break;
-        }
-        console.log(lastPoint.current)
-    }
-
-    const handleMouseDown = (
-        canvas: HTMLCanvasElement,
-        ctx: CanvasRenderingContext2D,
-        zoom: number
-    ) => (e: MouseEvent) => {
-        lastPoint.current = getCanvasXY(canvas, e, zoom);
-        // Handling text comes here in Martyna's original code
-        ctx.beginPath();
-        ctx.moveTo(lastPoint.current.x, lastPoint.current.y);
-    };
-
-    const handleMouseUp = (ctx: CanvasRenderingContext2D) => () => {
-        ctx.closePath();
-    };
-
-    // Prevents drawing glitches when cursor re-enters canvas
-    const handleMouseLeave = () => () => {
-        lastPoint.current = null;
-    }
-
-    const handleMouseMove = (
-        canvas: HTMLCanvasElement,
-        ctx: CanvasRenderingContext2D,
-        zoom: number
-    ) => (e: MouseEvent) => {
-        if (e.buttons !== 1) return; // Only proceed if the left mouse button is currently pressed
-
-        if (state.mode !== "draw" && state.mode !== "erase") return;
-
-        const current = getCanvasXY(canvas, e, zoom);
-        if (!lastPoint.current) return; // Prevents drawing glitches when cursor re-enters canvas
-
-        ctx.lineWidth = state.size;
-        ctx.strokeStyle = state.mode === "erase" ? "#ffffff" : state.color;
-        ctx.globalCompositeOperation = state.mode === "erase" ? "destination-out" : "source-over";
-
-        ctx.lineTo(current.x, current.y);
-        ctx.stroke();
-
-        lastPoint.current = current;
-    };
-
-    // Handles all canvas interaction
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
-
-        // Lists event listeners & their callback functions
-        const listeners: [keyof DocumentEventMap, EventListener][] = [
-            ["mouseenter", handleMouseDown(canvas, ctx, state.zoom)],
-            ["mousedown", handleMouseDown(canvas, ctx, state.zoom)],
-            ["mousemove", handleMouseMove(canvas, ctx, state.zoom)],
-            ["mouseup", handleMouseUp(ctx)],
-            ["mouseleave", handleMouseLeave()],
-            ["click", handleMouseClick(canvas, state.mode)]
-        ];
-
-        // Applies all event listeners on mount
-        for (const [event, handler] of listeners) {
-            canvas.addEventListener(event, handler);
-        }
-
-        // Removes all event listeners on unmount
-        return () => {
-            for (const [event, handler] of listeners) {
-                canvas.removeEventListener(event, handler);
-            }
-        };
-    }, [state.color, state.fontFamily, state.fontSize, state.mode, state.size]);
-
-    function updateObjectPosition(id: string, x: number, y: number) {
-        setObjects(prevObjects =>
-            prevObjects.map(obj =>
-                obj.id === id ? { ...obj, x, y } : obj
-            )
-        );
-    }
-
-    function updateObjectRotation(id: string, rotation: number) {
-        setObjects(prevObjects =>
-            prevObjects.map(obj =>
-                obj.id === id ? { ...obj, rotation } : obj
-            )
-        );
-    }
-
-    function updateObjectDimension(id: string, width: number, height: number) {
-        setObjects(prevObjects =>
-            prevObjects.map(obj =>
-                obj.id === id ? { ...obj, width, height } : obj
-            )
-        );
-    }
-
-    function deleteObject(id: string) {
-        setObjects(prevObjects => prevObjects.filter(obj => obj.id !== id));
-    }
-
-    function updateObjectText(id: string, text: string) {
-        setObjects(prevObjects =>
-            prevObjects.map(obj =>
-                obj.id === id && obj.type === "text" ? { ...obj, text } : obj
-            )
-        );
-    }
-
-    function updateObjectStyle(id: string, style: { color?: string; fontSize?: number; fontFamily?: string }) {
-        setObjects(prevObjects =>
-            prevObjects.map(obj =>
-                obj.id === id && obj.type === "text" ? { ...obj, ...style } : obj
-            )
-        );
-    }
-
-    const handleLocationSelect = (location: { name: string; lat: number; lng: number }) => {
-        if (!pendingLocationCoords) return;
-
-        setObjects(prev => [
-            ...prev,
-            {
-                id: crypto.randomUUID(),
-                x: pendingLocationCoords.x,
-                y: pendingLocationCoords.y,
-                type: "location",
-                label: location.name,
-                lat: location.lat,
-                lng: location.lng,
-                width: 200,  // Default width for location map
-                height: 150, // Default height for location map
-            },
-        ]);
-
-        setPendingLocationCoords(null);
-    };
-
-    const handleLocationPickerClose = () => {
-        setIsLocationPickerOpen(false);
-        setPendingLocationCoords(null);
-    };
-
-    // ----- Component itself ----- //
-
-    return (
-
-        <div className="flex bg-gray-300 w-screen h-screen flex-col">
-            {/* Top Bar */}
-            <Header />
-            <div className="flex h-screen">
-                {/* Toolbar */}
-                <Toolbar />
-                {/* Canvas Area */}
-                <main className="w-full bg-gray-300 pt-23 ps-10 overflow-auto grid place-items-center">
-                    <div className="relative mb-10 me-10">
-                        {/* Canvas itself */}
-                        <canvas
-                            ref={canvasRef}
-                            style={{ scale: state.zoom + "%" }}
-                            className="bg-white duration-100"
-                        />
-                        {/* Overlayed Objects */}
-                        {/* ... */}
-                        {objects.map(obj => (
-                            <OverlayObject
-                            key={obj.id}
-                                obj={obj}
-                                updateObjectPosition={updateObjectPosition}
-                                updateObjectRotation={updateObjectRotation}
-                                updateObjectDimension={updateObjectDimension}
-                                updateObjectText={updateObjectText}
-                                updateObjectStyle={updateObjectStyle}
-                                deleteObject={deleteObject}
-                                canvasWidth={canvasRef.current.width}
-                                canvasHeight={canvasRef.current.height}
-                            />
-                        ))}
-                    </div>
-                </main>
-                {/* Additional Tools Panel */}
-                <ToolsPanel />
+                    setTexts((ts) => ts.map((t) => (t.id === box.id ? updated : t)))
+                    wsRef.current?.send(JSON.stringify({ type: "textResize", payload: updated }))
+                    setIsDirty(true)
+                  }}
+                >
+                  <textarea
+                    value={box.text}
+                    readOnly={mode !== "move"}
+                    className="w-full h-full p-1 resize-none bg-white border"
+                    onChange={(e) => {
+                      const t = e.target.value.slice(0, 2000)
+                      setTexts((ts) =>
+                        ts.map((b) => (b.id === box.id ? { ...b, text: t } : b))
+                      )
+                      setIsDirty(true)
+                    }}
+                    onBlur={saveContent}
+                    style={{ color: box.color }}
+                  />
+                </Rnd>
+              ))}
             </div>
+          </main>
 
-            {/* Location Picker Modal */}
-            <LocationPicker
-                isOpen={isLocationPickerOpen}
-                onClose={handleLocationPickerClose}
-                onLocationSelect={handleLocationSelect}
-            />
+          <ToolsPanel />
         </div>
+      </div>
 
-    )
+      {/* Single DialogContent for both triggers */}
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Invite someone</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={onInvite} className="space-y-4">
+          <Input name="email" type="email" placeholder="friend@example.com" required />
+          <DialogFooter>
+            <Button type="submit">Send Invite</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+
+      <LocationPicker
+        isOpen={locationOpen}
+        onClose={() => setLocationOpen(false)}
+        onLocationSelect={() => {}}
+      />
+    </Dialog>
+  )
 }
 
 export default CanvasPage

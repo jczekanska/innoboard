@@ -1,3 +1,5 @@
+// src/pages/Dashboard.tsx
+
 import React, { useContext, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
@@ -21,12 +23,17 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
 
   const loadMy = () =>
-    fetch("/api/canvases", { headers: { Authorization: `Bearer ${token}` } })
+    fetch("/api/canvases", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
       .then((r) => r.json())
-      .then(setMyCanvases);
+      .then(setMyCanvases)
+      .catch(console.error);
 
   const loadJoined = () =>
-    fetch("/api/invitations", { headers: { Authorization: `Bearer ${token}` } })
+    fetch("/api/invitations", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
       .then((r) => r.json())
       .then((invs: Invitation[]) =>
         Promise.all(
@@ -37,7 +44,8 @@ const Dashboard: React.FC = () => {
           )
         )
       )
-      .then(setJoined);
+      .then(setJoined)
+      .catch(console.error);
 
   useEffect(() => {
     if (!token) return;
@@ -45,6 +53,7 @@ const Dashboard: React.FC = () => {
     loadJoined();
   }, [token]);
 
+  // ⚠️ Send an *empty* body so `name` is omitted (i.e. payload.name=None)
   const handleNew = () =>
     fetch("/api/canvases", {
       method: "POST",
@@ -52,10 +61,11 @@ const Dashboard: React.FC = () => {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ name: "" }),
+      body: JSON.stringify({}),  // <-- no name field at all
     })
       .then((r) => r.json())
-      .then((c) => navigate(`/canvas/${c.id}`));
+      .then((c: Canvas) => navigate(`/canvas/${c.id}`))
+      .catch(console.error);
 
   const handleLogout = () => {
     localStorage.removeItem("access_token");
@@ -73,7 +83,9 @@ const Dashboard: React.FC = () => {
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ name: newName }),
-    }).then(loadMy);
+    })
+      .then(() => loadMy())
+      .catch(console.error);
   };
 
   const handleDelete = (c: Canvas) => {
@@ -81,7 +93,9 @@ const Dashboard: React.FC = () => {
     fetch(`/api/canvases/${c.id}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
-    }).then(loadMy);
+    })
+      .then(() => loadMy())
+      .catch(console.error);
   };
 
   return (
@@ -115,6 +129,7 @@ const Dashboard: React.FC = () => {
       <CardContent className="space-y-6">
         <Button onClick={handleNew}>+ New Canvas</Button>
 
+        {/* My Canvases */}
         <div>
           <h3 className="text-lg font-medium">My Canvases</h3>
           <Separator />
@@ -123,9 +138,9 @@ const Dashboard: React.FC = () => {
           ) : (
             <List>
               {myCanvases.map((c) => (
-                <ListItem key={c.id}>
+                <ListItem key={c.id} className="flex items-center justify-between">
                   <Button variant="link" onClick={() => navigate(`/canvas/${c.id}`)}>
-                    {c.name || "(untitled)"}
+                    {c.name}
                   </Button>
                   <div className="flex space-x-2">
                     <Button variant="outline" onClick={() => handleRename(c)}>
@@ -141,6 +156,7 @@ const Dashboard: React.FC = () => {
           )}
         </div>
 
+        {/* Canvases I Joined */}
         <div>
           <h3 className="text-lg font-medium">Canvases I Joined</h3>
           <Separator />

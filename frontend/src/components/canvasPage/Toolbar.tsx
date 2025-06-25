@@ -1,9 +1,34 @@
+import React from "react"
 import type { Mode } from "@/types/canvas"
-import { Eraser, FileAudio, MapPin, Minus, MousePointer, PencilLine, Plus, Type, LucideIcon, Image, Scaling, RotateCw, Trash2, MoveIcon } from "lucide-react"
+import {
+  Eraser,
+  PencilLine,
+  MousePointer,
+  Scaling,
+  RotateCw,
+  Trash2,
+  MoveIcon,
+  Type,
+  Image,
+  FileAudio,
+  MapPin,
+  Plus,
+  Minus,
+  Save,
+  Share2,
+  Home,
+} from "lucide-react"
 import ToolsButton from "./ToolsButton"
 import { useCanvasSettings } from "@/context/CanvasSettingsContext"
+import { DialogTrigger } from "@/components/ui/dialog"
 
-const TOOLS: Record<Mode, LucideIcon> = {
+export type ToolbarProps = {
+  onSave: () => void
+  onShare: () => void  // no-op, trigger is handled by DialogTrigger
+  onDashboard: () => void
+}
+
+const MODE_ICONS: Record<Mode, React.FC> = {
     draw: PencilLine,
     erase: Eraser,
     select: MousePointer,
@@ -17,39 +42,56 @@ const TOOLS: Record<Mode, LucideIcon> = {
     location: MapPin,
 }
 
-const Toolbar = () => {
-    const { state, dispatch } = useCanvasSettings()
-    const { mode, zoom } = state
+const Toolbar: React.FC<ToolbarProps> = ({ onSave, onShare, onDashboard }) => {
+  const { state, dispatch } = useCanvasSettings()
+  const { mode, zoom } = state
 
-    return (
-        <aside className="flex flex-col w-15 bg-white pt-16 pb-3 border-e-1">
-            <section className="flex flex-col items-center gap-3">
-                {(Object.entries(TOOLS) as [Mode, LucideIcon][]).map(([toolMode, Icon]) => (
-                    <ToolsButton
-                        key={toolMode}
-                        icon={Icon}
-                        active={mode === toolMode}
-                        onClick={() => dispatch({ type: "SET_MODE", payload: toolMode })} />
-                ))}
-            </section>
-            {/* Zoom Functionality (might cause problems: in this case, remove it) */}
-            <section className="flex flex-col items-center gap-3 h-full justify-end">
-                <ToolsButton
-                    icon={Minus}
-                    onClick={() =>
-                        dispatch({ type: "SET_ZOOM", payload: zoom > 25 ? zoom - 25 : zoom })
-                    }
-                />
-                <span className="text-xs">{zoom}%</span>
-                <ToolsButton
-                    icon={Plus}
-                    onClick={() =>
-                        dispatch({ type: "SET_ZOOM", payload: zoom < 350 ? zoom + 25 : zoom })
-                    }
-                />
-            </section>
-        </aside>
-    )
+  return (
+    <aside className="flex flex-col w-16 bg-white pt-4 pb-4 border-e z-10">
+      {/* Mode tools */}
+      <section className="flex flex-col items-center gap-3">
+        {(Object.entries(MODE_ICONS) as [Mode, React.FC][]).map(
+          ([m, Icon]) => (
+            <ToolsButton
+              key={m}
+              icon={Icon}
+              active={mode === m}
+              onClick={() => dispatch({ type: "SET_MODE", payload: m })}
+            />
+          )
+        )}
+      </section>
+
+      {/* Zoom */}
+      <section className="flex flex-col items-center gap-2 mt-auto mb-4">
+        <ToolsButton
+          icon={Plus}
+          onClick={() =>
+            dispatch({ type: "SET_ZOOM", payload: Math.max(25, zoom + 25) })
+          }
+        />
+        <span className="text-xs font-medium">{zoom}%</span>
+        <ToolsButton
+          icon={Minus}
+          onClick={() =>
+            dispatch({ type: "SET_ZOOM", payload: Math.min(350, zoom - 25) })
+          }
+        />
+      </section>
+
+      {/* Save / Share / Dashboard */}
+      <div className="border-t pt-3 space-y-3 flex flex-col items-center">
+        <ToolsButton icon={Save} onClick={onSave} />
+
+        {/* Share icon wrapped in DialogTrigger */}
+        <DialogTrigger asChild>
+          <ToolsButton icon={Share2} />
+        </DialogTrigger>
+
+        <ToolsButton icon={Home} onClick={onDashboard} />
+      </div>
+    </aside>
+  )
 }
 
 export default Toolbar

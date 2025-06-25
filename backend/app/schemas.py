@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr, ConfigDict
 from datetime import datetime
-from typing import Dict
+from typing import Dict, Optional
 
 class UserCreate(BaseModel):
     email: EmailStr
@@ -15,7 +15,7 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 class CanvasBase(BaseModel):
-    name: str
+    name: Optional[str] = None
 
 class CanvasCreate(CanvasBase):
     pass
