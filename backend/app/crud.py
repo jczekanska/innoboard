@@ -82,11 +82,9 @@ async def get_invitation_by_token(db: AsyncSession, token: str):
     return result.scalars().first()
 
 async def update_user_email(db: AsyncSession, user: User, current_password: str, new_email: str):
-    # 1. Verify current password
     if not verify_password(current_password, user.hashed_password):
         return False, "Incorrect password"
 
-    # 2. Attempt to update
     user.email = new_email
     try:
         await db.commit()
@@ -95,3 +93,11 @@ async def update_user_email(db: AsyncSession, user: User, current_password: str,
     except IntegrityError:
         await db.rollback()
         return False, "This email is already in use."
+    
+async def update_user_password(db: AsyncSession, user: User, current_password: str, new_password: str):
+    if not verify_password(current_password, user.hashed_password):
+        return False, "Incorrect current password"
+
+    user.hashed_password = get_password_hash(new_password)
+    await db.commit()
+    return True, None

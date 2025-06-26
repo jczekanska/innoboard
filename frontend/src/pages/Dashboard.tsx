@@ -15,11 +15,20 @@ import { Separator } from "../components/ui/separator";
 const Dashboard: React.FC = () => {
   const { token, setToken } = useContext(AuthContext);
   const [menuOpen, setMenuOpen] = useState(false);
+
   const [showChangeEmail, setShowChangeEmail] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState("");
+  const [emailCurrentPassword, setEmailCurrentPassword] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [emailError, setEmailError] = useState<string | null>(null);
   const [loadingEmail, setLoadingEmail] = useState(false);
+
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [pwdCurrent, setPwdCurrent] = useState("");
+  const [pwdNew, setPwdNew] = useState("");
+  const [pwdConfirm, setPwdConfirm] = useState("");
+  const [pwdError, setPwdError] = useState<string | null>(null);
+  const [loadingPwd, setLoadingPwd] = useState(false);
+
   const [myCanvases, setMyCanvases] = useState<Canvas[]>([]);
   const [joined, setJoined] = useState<Canvas[]>([]);
   const navigate = useNavigate();
@@ -110,7 +119,7 @@ const Dashboard: React.FC = () => {
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        current_password: currentPassword,
+        current_password: emailCurrentPassword,
         new_email: newEmail,
       }),
     });
@@ -118,6 +127,43 @@ const Dashboard: React.FC = () => {
     setLoadingEmail(false);
     if (!resp.ok) {
       setEmailError(body.detail || "An error occurred");
+    } else {
+      localStorage.removeItem("access_token");
+      setToken(null);
+      navigate("/");
+    }
+  };
+
+  const passwordValid = (pw: string) =>
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*]).{8,}$/.test(pw);
+
+  const handleChangePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPwdError(null);
+    if (pwdNew !== pwdConfirm) {
+      setPwdError("Passwords do not match");
+      return;
+    }
+    if (!passwordValid(pwdNew)) {
+      setPwdError("Password must be 8+ chars, upper, lower, number & special");
+      return;
+    }
+    setLoadingPwd(true);
+    const resp = await fetch("/api/user/change_password", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        current_password: pwdCurrent,
+        new_password: pwdNew,
+      }),
+    });
+    const body = await resp.json();
+    setLoadingPwd(false);
+    if (!resp.ok) {
+      setPwdError(body.detail || "An error occurred");
     } else {
       localStorage.removeItem("access_token");
       setToken(null);
@@ -141,7 +187,7 @@ const Dashboard: React.FC = () => {
             />
           </button>
           {menuOpen && (
-            <div className="absolute right-0 mt-2 w-40 bg-card border shadow-md">
+            <div className="absolute right-0 mt-2 w-44 bg-card border shadow-md">
               <button
                 onClick={() => {
                   setShowChangeEmail(true);
@@ -150,6 +196,15 @@ const Dashboard: React.FC = () => {
                 className="w-full text-left px-4 py-2 hover:bg-muted"
               >
                 Change Email
+              </button>
+              <button
+                onClick={() => {
+                  setShowChangePassword(true);
+                  setMenuOpen(false);
+                }}
+                className="w-full text-left px-4 py-2 hover:bg-muted"
+              >
+                Change Password
               </button>
               <button
                 onClick={handleLogout}
@@ -234,13 +289,15 @@ const Dashboard: React.FC = () => {
                 <input
                   type="password"
                   className="mt-1 block w-full border rounded px-2 py-1"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  value={emailCurrentPassword}
+                  onChange={(e) => setEmailCurrentPassword(e.target.value)}
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium">New Email</label>
+                <label className="block text-sm font-medium">
+                  New Email
+                </label>
                 <input
                   type="email"
                   className="mt-1 block w-full border rounded px-2 py-1"
@@ -266,6 +323,76 @@ const Dashboard: React.FC = () => {
                   disabled={loadingEmail}
                 >
                   {loadingEmail ? "Saving…" : "Save"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showChangePassword && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
+          <div className="bg-white p-6 rounded shadow max-w-sm w-full">
+            <h3 className="text-lg font-medium mb-4">Change Password</h3>
+            <form onSubmit={handleChangePasswordSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium">
+                  Current Password
+                </label>
+                <input
+                  type="password"
+                  className="mt-1 block w-full border rounded px-2 py-1"
+                  value={pwdCurrent}
+                  onChange={(e) => setPwdCurrent(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium">
+                  New Password
+                </label>
+                <input
+                  type="password"
+                  className="mt-1 block w-full border rounded px-2 py-1"
+                  value={pwdNew}
+                  onChange={(e) => setPwdNew(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium">
+                  Confirm New Password
+                </label>
+                <input
+                  type="password"
+                  className="mt-1 block w-full border rounded px-2 py-1"
+                  value={pwdConfirm}
+                  onChange={(e) => setPwdConfirm(e.target.value)}
+                  required
+                />
+              </div>
+              {pwdError && <p className="text-sm text-red-600">{pwdError}</p>}
+              <div className="flex justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setShowChangePassword(false)}
+                  className="px-4 py-2 border rounded"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded"
+                  disabled={
+                    loadingPwd ||
+                    !pwdCurrent ||
+                    !pwdNew ||
+                    !pwdConfirm ||
+                    pwdNew !== pwdConfirm ||
+                    !passwordValid(pwdNew)
+                  }
+                >
+                  {loadingPwd ? "Saving…" : "Save"}
                 </button>
               </div>
             </form>

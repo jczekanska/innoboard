@@ -24,7 +24,7 @@ from sqlalchemy.orm import selectinload
 from . import models, schemas, crud, auth
 from .database import async_session, sync_engine, Base
 from .auth import oauth2_scheme, decode_token
-from .schemas import InvitationCreate, CanvasData, ChangeEmail
+from .schemas import InvitationCreate, CanvasData, ChangeEmail, ChangePassword
 from .crud import (
     get_canvas,
     create_invitation,
@@ -34,6 +34,7 @@ from .crud import (
     get_invitation_by_token,
     get_user_by_email,
     update_user_email,
+    update_user_password,
 )
 
 Base.metadata.create_all(bind=sync_engine)
@@ -301,3 +302,14 @@ async def api_change_email(
     if not ok:
         raise HTTPException(status_code=400, detail=err)
     return {"message": "Email updated successfully"}
+
+@app.patch("/user/change_password")
+async def api_change_password(
+    payload: ChangePassword,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    ok, err = await update_user_password(db, current_user, payload.current_password, payload.new_password)
+    if not ok:
+        raise HTTPException(status_code=400, detail=err)
+    return {"message": "Password updated successfully"}
