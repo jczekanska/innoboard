@@ -1,15 +1,17 @@
 // src/components/canvasPage/Header.tsx
 import React from "react"
-import { ArrowLeft, Share2, Edit2 } from "lucide-react"
+import { ArrowLeft, Share2, Edit2, Home, Save } from "lucide-react"
 import { DialogTrigger } from "@/components/ui/dialog"
 
 export type HeaderProps = {
   onBack: () => void
   name: string
   onRename: (newName: string) => void
+  onSave: () => void
+  onDashboard: () => void
 }
 
-const Header: React.FC<HeaderProps> = ({ onBack, name, onRename }) => {
+const Header: React.FC<HeaderProps> = ({ onBack, name, onRename, onSave, onDashboard }) => {
   return (
     <header className="flex absolute items-center w-screen h-13 bg-white px-3 border-b-1 z-20">
       <div className="flex items-center w-full gap-4">
@@ -34,13 +36,29 @@ const Header: React.FC<HeaderProps> = ({ onBack, name, onRename }) => {
         </h1>
       </div>
 
-      <div className="flex items-center w-full justify-end">
+      <div className="flex items-center w-full justify-end gap-3">
+        <button 
+          className="flex items-center border py-1 px-3 gap-1.5 rounded-xl bg-white hover:scale-105 duration-150"
+          onClick={onSave}
+        >
+          <Save className="w-4" />
+          <span>Save</span>
+        </button>
+        
         <DialogTrigger asChild>
           <button className="flex items-center border py-1 px-3 gap-1.5 rounded-xl bg-white hover:scale-105 duration-150">
             <Share2 className="w-4" />
             <span>Share</span>
           </button>
         </DialogTrigger>
+        
+        <button 
+          className="flex items-center border py-1 px-3 gap-1.5 rounded-xl bg-white hover:scale-105 duration-150"
+          onClick={onDashboard}
+        >
+          <Home className="w-4" />
+          <span>Home</span>
+        </button>
       </div>
     </header>
   )

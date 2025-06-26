@@ -14,19 +14,11 @@ import {
   MapPin,
   Plus,
   Minus,
-  Save,
-  Share2,
-  Home,
 } from "lucide-react"
 import ToolsButton from "./ToolsButton"
 import { useCanvasSettings } from "@/context/CanvasSettingsContext"
-import { DialogTrigger } from "@/components/ui/dialog"
 
-export type ToolbarProps = {
-  onSave: () => void
-  onShare: () => void
-  onDashboard: () => void
-}
+export type ToolbarProps = {}
 
 const MODE_ICONS: Record<Mode, React.FC> = {
   draw: PencilLine,
@@ -42,11 +34,7 @@ const MODE_ICONS: Record<Mode, React.FC> = {
   location: MapPin,
 }
 
-const Toolbar: React.FC<ToolbarProps> = ({
-  onSave,
-  onShare,
-  onDashboard,
-}) => {
+const Toolbar: React.FC<ToolbarProps> = () => {
   const { state, dispatch } = useCanvasSettings()
   const { mode, zoom } = state
 
@@ -83,14 +71,6 @@ const Toolbar: React.FC<ToolbarProps> = ({
         />
       </section>
 
-      {/* Save / Share / Dashboard */}
-      <div className="border-t pt-3 space-y-3 flex flex-col items-center">
-        <ToolsButton icon={Save} onClick={onSave} />
-        <DialogTrigger asChild>
-          <ToolsButton icon={Share2} />
-        </DialogTrigger>
-        <ToolsButton icon={Home} onClick={onDashboard} />
-      </div>
     </aside>
   )
 }
