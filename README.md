@@ -16,7 +16,7 @@ No user-friendly UI yet :)
 
 - [x] As a user,​ I must be able to sign up,​ so that I can create an account and save my canvases.
 - [x] As a user,​ I must be able to log in,​ so that I can access my saved canvases and continue previous work.
-- [ ] As a user, I must be able to reset my password, so that I can regain access to my account if I forget my login credentials.
+- [ ] As a user, I must be able to change my email, so that I can update my login address without losing access to my account.
 - [x] As a logged user, I must be able to log out, so that I can securely end my session and protect my account.
 - [ ] As a logged user, I must be able to change my password, so that I can secure my account.
 - [x] As a logged user, I must be able to create a canvas, so that I can start a new workspace for collaboration.
@@ -26,15 +26,15 @@ No user-friendly UI yet :)
 - [x] As an editor, I must be able to move and resize things on my canvas, so that I can organize my workspace however I want.
 - [x] As a canvas owner, I must be able to share my canvas, so that I can collaborate with others in real time.
 - [x] As a logged user,​ I must be able to join a collaborative canvas,​ so that I can work on it with others in real time.
-- [ ] As an editor,​ I should be able to add and click hyperlinks in text boxes,​ so that I can reference and access external resources easily.
+- [x] As an editor,​ I should be able to add and click hyperlinks in text boxes,​ so that I can reference and access external resources easily.
 - [ ] As an editor,​ I should be able to add my own images to the drawing board,​ so that I can illustrate ideas or include visual references.
 - [ ] As an owner,​ I should be able to manage invite links,​ so that I can track access and control how people join my canvas.
 - [ ] As an editor,​ I should be able to see the full list of members, along with their role,​
 So that I can understand who has access and at what level.
 - [ ] As an editor, I should be able to copy and paste elements on the canvas, so that I can quickly duplicate content and organize my workspace efficiently.
 - [ ] As an owner,​ I should be able to remove users from the whiteboard,​ so that I can restrict access when necessary.
-- [ ] As an editor,​ I could be able to add GIFs to the whiteboard,​ so that I can express ideas or reactions more visually.
-- [ ] As an editor,​ I could be able to add checkboxes,​ so that I can track tasks or mark items visually.
+- [ ] As an editor, I must be able to create and manipulate circles, so that I can diagram or highlight areas visually.
+- [ ] As an editor, I must be able to create and manipulate rectangles, so that I can structure layouts or call out areas.
 - [ ] As an editor,​ I could be able to add audio files to the canvas,​ so that I can leave quick audio notes or explanations.
 - [ ] As an editor,​ I could be able to add locations to the canvas,​ so that I can reference real-world places visually.
 - [ ] As an editor,​ I could be able to highlight with a temporary pen,​ so that I can draw attention without leaving permanent marks.
