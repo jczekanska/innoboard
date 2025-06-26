@@ -169,6 +169,7 @@ const CanvasPage: React.FC = () => {
     const ctx = canvas.getContext("2d")!
     let drawing = false
     let currentStroke: Stroke | null = null
+    let lastPoint: { x: number; y: number } | null = null
 
     const toCanvas = (e: MouseEvent) => {
       const rect = canvas.getBoundingClientRect()
@@ -180,6 +181,8 @@ const CanvasPage: React.FC = () => {
 
     const onDown = (e: MouseEvent) => {
       const { x, y } = toCanvas(e)
+      lastPoint = { x, y }
+      
       if (mode === "text") {
         const txt = prompt("Enter text")?.slice(0, 2000)
         if (!txt) return
@@ -199,6 +202,7 @@ const CanvasPage: React.FC = () => {
         setIsDirty(true)
         return
       }
+      
       if (mode === "draw" || mode === "erase") {
         drawing = true
         currentStroke = { mode, color, size, path: [{ x, y }] }
@@ -208,15 +212,24 @@ const CanvasPage: React.FC = () => {
     }
 
     const onMove = (e: MouseEvent) => {
-      if (!drawing || !currentStroke) return
+      if (!drawing || !currentStroke || !lastPoint) return
+      
       const { x, y } = toCanvas(e)
+      
+      // Only draw if mouse button is pressed (e.buttons === 1)
+      if ((e as any).buttons !== 1) return
+      
       ctx.lineWidth = currentStroke.size
       ctx.strokeStyle = currentStroke.color
       ctx.globalCompositeOperation =
         currentStroke.mode === "erase" ? "destination-out" : "source-over"
+      
       ctx.lineTo(x, y)
       ctx.stroke()
+      
       currentStroke.path.push({ x, y })
+      lastPoint = { x, y }
+      
       wsRef.current?.send(
         JSON.stringify({
           type: "draw",
@@ -232,18 +245,23 @@ const CanvasPage: React.FC = () => {
         currentStroke = null
       }
       drawing = false
-      ctx.closePath()
+      lastPoint = null
+      // Don't call ctx.closePath() to avoid connecting lines
+    }
+    
+    const onLeave = () => {
+      lastPoint = null
     }
 
-    canvas.addEventListener("mousedown", onDown as any)
-    canvas.addEventListener("mousemove", onMove as any)
-    canvas.addEventListener("mouseup", onUp as any)
-    canvas.addEventListener("mouseleave", onUp as any)
+    window.addEventListener("mousedown", onDown as any)
+    window.addEventListener("mousemove", onMove as any)
+    window.addEventListener("mouseup", onUp as any)
+    window.addEventListener("mouseleave", onLeave as any)
     return () => {
-      canvas.removeEventListener("mousedown", onDown as any)
-      canvas.removeEventListener("mousemove", onMove as any)
-      canvas.removeEventListener("mouseup", onUp as any)
-      canvas.removeEventListener("mouseleave", onUp as any)
+      window.removeEventListener("mousedown", onDown as any)
+      window.removeEventListener("mousemove", onMove as any)
+      window.removeEventListener("mouseup", onUp as any)
+      window.removeEventListener("mouseleave", onLeave as any)
     }
   }, [mode, color, size, zoom])
 
