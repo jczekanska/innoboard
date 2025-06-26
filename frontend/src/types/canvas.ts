@@ -31,7 +31,9 @@ export type Mode =
   | "erase"
   | "image"
   | "audio"
-  | "location";
+  | "location"
+  | "circle"
+  | "rectangle";
 
 export type Point = { x: number; y: number };
 

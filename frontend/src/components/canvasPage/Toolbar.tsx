@@ -11,6 +11,8 @@ import {
   Type,
   Image,
   FileAudio,
+  Circle,
+  RectangleHorizontal,
   MapPin,
   Plus,
   Minus,
@@ -40,6 +42,8 @@ const MODE_ICONS: Record<Mode, React.FC> = {
   image: Image,
   audio: FileAudio,
   location: MapPin,
+  circle: Circle,
+  rectangle: RectangleHorizontal,
 }
 
 const Toolbar: React.FC<ToolbarProps> = ({

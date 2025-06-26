@@ -33,8 +33,8 @@ A collaborative app that allows users to draw on a canvas in real time and more!
 So that I can understand who has access and at what level.
 - [x] As an editor, I should be able to copy and paste elements on the canvas, so that I can quickly duplicate content and organize my workspace efficiently.
 - [ ] As an owner,​ I should be able to remove users from the whiteboard,​ so that I can restrict access when necessary.
-- [ ] As an editor, I must be able to create and manipulate circles, so that I can diagram or highlight areas visually.
-- [ ] As an editor, I must be able to create and manipulate rectangles, so that I can structure layouts or call out areas.
+- [x] As an editor, I must be able to create and manipulate circles, so that I can diagram or highlight areas visually.
+- [x] As an editor, I must be able to create and manipulate rectangles, so that I can structure layouts or call out areas.
 - [ ] As an editor,​ I could be able to add audio files to the canvas,​ so that I can leave quick audio notes or explanations.
 - [ ] As an editor,​ I could be able to add locations to the canvas,​ so that I can reference real-world places visually.
 - [ ] As an editor,​ I could be able to highlight with a temporary pen,​ so that I can draw attention without leaving permanent marks.

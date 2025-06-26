@@ -52,6 +52,24 @@ interface ImageBox {
   src: string
 }
 
+interface CircleBox {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+  color: string
+}
+
+interface RectangleBox {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+  color: string
+}
+
 function linkifyText(text: string): ReactNode[] {
   const urlRegex = /(https?:\/\/[^\s]+)/g
   const parts = text.split(urlRegex)
@@ -85,6 +103,8 @@ const CanvasPage: React.FC = () => {
   const [texts, setTexts] = useState<TextBox[]>([])
   const [strokes, setStrokes] = useState<Stroke[]>([])
   const [images, setImages] = useState<ImageBox[]>([])
+  const [circles, setCircles] = useState<CircleBox[]>([])
+  const [rectangles, setRectangles] = useState<RectangleBox[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [clipboard, setClipboard] = useState<TextBox | ImageBox | null>(null)
   const [isDirty, setIsDirty] = useState(false)
@@ -218,6 +238,34 @@ const CanvasPage: React.FC = () => {
         setImages((imgs) => imgs.filter((i) => i.id !== msg.payload.id))
         setIsDirty(true)
         break
+      case "circleAdd":
+        setCircles((cs) => [...cs, msg.payload])
+        setIsDirty(true)
+        break
+      case "circleMove":
+      case "circleResize":
+        setCircles((cs) =>
+          cs.map((c) =>
+            c.id === msg.payload.id ? msg.payload : c
+          )
+        )
+        setIsDirty(true)
+        break
+      case "rectangleAdd":
+        setRectangles((rs) => [...rs, msg.payload])
+        setIsDirty(true)
+        break
+      case "rectangleMove":
+      case "rectangleResize":
+        setRectangles((rs) =>
+          rs.map((r) => (r.id === msg.payload.id ? msg.payload : r))
+        )
+        setIsDirty(true)
+        break
+      case "rectangleDelete":
+        setRectangles((rs) => rs.filter((r) => r.id !== msg.payload.id))
+        setIsDirty(true)
+        break
     }
   }
 
@@ -276,6 +324,34 @@ const CanvasPage: React.FC = () => {
     }
     const onDown = (e: MouseEvent) => {
       const { x, y } = toCanvas(e)
+      if (mode === "circle") {
+        const circle: CircleBox = {
+          id: crypto.randomUUID(),
+          x,
+          y,
+          width: 100,
+          height: 100,
+          color,
+        }
+        setCircles((cs) => [...cs, circle])
+        wsRef.current?.send(JSON.stringify({ type: "circleAdd", payload: circle }))
+        setIsDirty(true)
+        return
+      }
+      if (mode === "rectangle") {
+        const rect: RectangleBox = {
+          id: crypto.randomUUID(),
+          x,
+          y,
+          width: 150,
+          height: 100,
+          color,
+        }
+        setRectangles((rs) => [...rs, rect])
+        wsRef.current?.send(JSON.stringify({ type: "rectangleAdd", payload: rect }))
+        setIsDirty(true)
+        return
+      }
       if (mode === "text") {
         const txt = prompt("Enter text")?.slice(0, 2000)
         if (!txt) return
@@ -620,6 +696,91 @@ const CanvasPage: React.FC = () => {
                   </div>
                 </Rnd>
               ))}
+              {rectangles.map((r) => (
+                <Rnd
+                  key={r.id}
+                  size={{ width: r.width, height: r.height }}
+                  position={{ x: r.x, y: r.y }}
+                  bounds="parent"
+                  disableDragging={mode !== "move" && mode !== "delete"}
+                  enableResizing={mode === "move"}
+                  resizeHandleStyles={mode === "move" ? resizeHandles : {}}
+                  style={{
+                    border: `2px solid ${r.color}`,
+                    cursor: mode === "delete" ? "pointer" : undefined,
+                  }}
+                  onDragStop={(_, d) => {
+                    if (mode !== "move") return
+                    const upd = { ...r, x: d.x, y: d.y }
+                    setRectangles((rs) => rs.map((x) => (x.id === r.id ? upd : x)))
+                    wsRef.current?.send(JSON.stringify({ type: "rectangleMove", payload: upd }))
+                    setIsDirty(true)
+                  }}
+                  onResizeStop={(_, __, ref, ___, d) => {
+                    if (mode !== "move") return
+                    const upd = {
+                      ...r,
+                      width: parseInt(ref.style.width),
+                      height: parseInt(ref.style.height),
+                      x: d.x,
+                      y: d.y,
+                    }
+                    setRectangles((rs) => rs.map((x) => (x.id === r.id ? upd : x)))
+                    wsRef.current?.send(JSON.stringify({ type: "rectangleResize", payload: upd }))
+                    setIsDirty(true)
+                  }}
+                  onClick={() => {
+                    if (mode === "delete") {
+                      setRectangles((rs) => rs.filter((x) => x.id !== r.id))
+                      wsRef.current?.send(JSON.stringify({ type: "rectangleDelete", payload: { id: r.id } }))
+                      setIsDirty(true)
+                    }
+                  }}
+                />
+              ))}
+               {circles.map((c) => (
+              <Rnd
+                key={c.id}
+                size={{ width: c.width, height: c.height }}
+                position={{ x: c.x, y: c.y }}
+                bounds="parent"
+                disableDragging={mode !== "move"}
+                enableResizing={mode === "move"}
+                resizeHandleStyles={mode === "move" ? resizeHandles : {}}
+                style={{
+                  border: `2px solid ${c.color}`,
+                  borderRadius: "50%",
+                  pointerEvents:
+                    mode === "move" || mode === "select" ? "auto" : "none",
+                  cursor: mode === "delete" ? "pointer" : undefined,
+                }}
+                onClick={() => {
+                  if (mode === "delete") {
+                    setCircles((cs) => cs.filter((x) => x.id !== c.id))
+                    wsRef.current?.send(JSON.stringify({ type: "circleDelete", payload: { id: c.id } }))
+                    setIsDirty(true)
+                  }
+                }}
+                onDragStop={(_, d) => {
+                  const updated = { ...c, x: d.x, y: d.y }
+                  setCircles((cs) => cs.map((x) => (x.id === c.id ? updated : x)))
+                  wsRef.current?.send(JSON.stringify({ type: "circleMove", payload: updated }))
+                  setIsDirty(true)
+                }}
+                onResizeStop={(_, __, ref, ___, d) => {
+                  const updated = {
+                    ...c,
+                    width: parseInt(ref.style.width),
+                    height: parseInt(ref.style.height),
+                    x: d.x,
+                    y: d.y,
+                  }
+                  setCircles((cs) => cs.map((x) => (x.id === c.id ? updated : x)))
+                  wsRef.current?.send(JSON.stringify({ type: "circleResize", payload: updated }))
+                  setIsDirty(true)
+                }}
+              />
+            ))}
             </div>
           </main>
           <ToolsPanel />
