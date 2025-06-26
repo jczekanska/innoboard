@@ -3,7 +3,7 @@ from sqlalchemy.future import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from .models import User, Canvas, Invitation
-from .auth import get_password_hash
+from .auth import get_password_hash, verify_password
 
 async def get_user_by_email(db: AsyncSession, email: str):
     result = await db.execute(select(User).where(User.email == email))
@@ -80,3 +80,24 @@ async def save_canvas_data(db: AsyncSession, canvas_id: int, data: dict):
 async def get_invitation_by_token(db: AsyncSession, token: str):
     result = await db.execute(select(Invitation).where(Invitation.token == token))
     return result.scalars().first()
+
+async def update_user_email(db: AsyncSession, user: User, current_password: str, new_email: str):
+    if not verify_password(current_password, user.hashed_password):
+        return False, "Incorrect password"
+
+    user.email = new_email
+    try:
+        await db.commit()
+        await db.refresh(user)
+        return True, None
+    except IntegrityError:
+        await db.rollback()
+        return False, "This email is already in use."
+    
+async def update_user_password(db: AsyncSession, user: User, current_password: str, new_password: str):
+    if not verify_password(current_password, user.hashed_password):
+        return False, "Incorrect current password"
+
+    user.hashed_password = get_password_hash(new_password)
+    await db.commit()
+    return True, None
