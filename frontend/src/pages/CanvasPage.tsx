@@ -85,6 +85,8 @@ const CanvasPage: React.FC = () => {
   const [texts, setTexts] = useState<TextBox[]>([])
   const [strokes, setStrokes] = useState<Stroke[]>([])
   const [images, setImages] = useState<ImageBox[]>([])
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [clipboard, setClipboard] = useState<TextBox | ImageBox | null>(null)
   const [isDirty, setIsDirty] = useState(false)
   const [isShareOpen, setIsShareOpen] = useState(false)
 
@@ -130,6 +132,48 @@ const CanvasPage: React.FC = () => {
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     replayStrokes(ctx, strokes)
   }, [strokes, zoom])
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!e.ctrlKey) return
+
+      if (e.key.toLowerCase() === "c" && selectedId) {
+        e.preventDefault()
+        const foundText = texts.find((t) => t.id === selectedId)
+        const foundImg = images.find((i) => i.id === selectedId)
+        const item = foundText ?? foundImg
+        if (!item) return
+
+        const clone = { ...item, id: crypto.randomUUID() }
+        setClipboard(clone)
+      }
+
+      if (e.key.toLowerCase() === "v" && clipboard) {
+        e.preventDefault()
+        const pasted = {
+          ...clipboard,
+          x: clipboard.x + 10,
+          y: clipboard.y + 10,
+          id: crypto.randomUUID(),
+        }
+
+        if ("text" in pasted) {
+          setTexts((ts) => [...ts, pasted as TextBox])
+          wsRef.current?.send(JSON.stringify({ type: "textAdd", payload: pasted }))
+        } else {
+          setImages((imgs) => [...imgs, pasted as ImageBox])
+          wsRef.current?.send(JSON.stringify({ type: "imageAdd", payload: pasted }))
+        }
+
+        setSelectedId(pasted.id)
+        setClipboard({ ...pasted, id: crypto.randomUUID() })
+        setIsDirty(true)
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [selectedId, clipboard, texts, images])
 
   function handleRemote(msg: any) {
     const ctx = canvasRef.current?.getContext("2d")
@@ -500,11 +544,16 @@ const CanvasPage: React.FC = () => {
                       mode === "move" || mode === "select"
                         ? "auto"
                         : "none",
+                    outline:
+                      mode === "select" && selectedId === box.id
+                        ? "2px dashed #3b82f6"
+                        : "none",
                   }}
                   onDragStop={(_, d) => updateTextPosition(box, d)}
                   onResizeStop={(_, __, ref, ___, d) =>
                     updateTextResize(box, ref, d)
                   }
+                  onClick={() => mode === "select" && setSelectedId(box.id)}
                 >
                   {mode === "move" ? (
                     <textarea
@@ -546,6 +595,13 @@ const CanvasPage: React.FC = () => {
                       y: d.y,
                     })
                   }
+                  style={{
+                    outline:
+                      mode === "select" && selectedId === img.id
+                        ? "2px dashed #3b82f6"
+                        : "none",
+                  }}
+                  onClick={() => mode === "select" && setSelectedId(img.id)}
                 >
                   <div className="relative">
                     <img
