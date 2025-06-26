@@ -31,7 +31,9 @@ export type Mode =
   | "erase"
   | "image"
   | "audio"
-  | "location";
+  | "location"
+  | "circle"
+  | "rectangle";
 
 export type Point = { x: number; y: number };
 
@@ -80,5 +82,27 @@ export type CanvasObject =
     color: string;
     fontSize: number;
     fontFamily: string;
+    rotation: number;
+  }
+  | {
+    id: string;
+    type: "circle";
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    color: string;
+    strokeWidth: number;
+    rotation: number;
+  }
+  | {
+    id: string;
+    type: "rectangle";
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    color: string;
+    strokeWidth: number;
     rotation: number;
   };

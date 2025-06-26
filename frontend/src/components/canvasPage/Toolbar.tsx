@@ -14,6 +14,8 @@ import {
   MapPin,
   Plus,
   Minus,
+  Circle,
+  Square,
 } from "lucide-react"
 import ToolsButton from "./ToolsButton"
 import { useCanvasSettings } from "@/context/CanvasSettingsContext"
@@ -32,6 +34,8 @@ const MODE_ICONS: Record<Mode, React.FC> = {
   image: Image,
   audio: FileAudio,
   location: MapPin,
+  circle: Circle,
+  rectangle: Square,
 }
 
 const Toolbar: React.FC<ToolbarProps> = () => {

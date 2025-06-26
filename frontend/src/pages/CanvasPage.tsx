@@ -69,6 +69,28 @@ const CanvasPage: React.FC = () => {
   const [pendingLocationCoords, setPendingLocationCoords] = useState<{ x: number; y: number } | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [clipboard, setClipboard] = useState<CanvasObject | null>(null)
+  
+  // Update selected shape properties when color or size changes
+  useEffect(() => {
+    if (selectedId && (mode === "select")) {
+      const selectedObject = objects.find(obj => obj.id === selectedId)
+      if (selectedObject && (selectedObject.type === "circle" || selectedObject.type === "rectangle")) {
+        // Only update if the color or strokeWidth actually changed
+        if (selectedObject.color !== color || selectedObject.strokeWidth !== size) {
+          setObjects(prevObjects =>
+            prevObjects.map(obj =>
+              obj.id === selectedId ? { ...obj, color, strokeWidth: size } : obj
+            )
+          )
+          const updatedObject = { ...selectedObject, color, strokeWidth: size }
+          wsRef.current?.send(
+            JSON.stringify({ type: "objectUpdate", payload: updatedObject })
+          )
+          setIsDirty(true)
+        }
+      }
+    }
+  }, [color, size, selectedId, mode]) // Removed 'objects' from dependencies
 
   useEffect(() => {
     if (!token || !id) return
@@ -274,6 +296,46 @@ const CanvasPage: React.FC = () => {
         return
       }
       
+      if (mode === "circle") {
+        const obj: CanvasObject = {
+          id: crypto.randomUUID(),
+          type: "circle",
+          x,
+          y,
+          width: 100,
+          height: 100,
+          color: state.color,
+          strokeWidth: state.size,
+          rotation: 0,
+        }
+        setObjects((objs) => [...objs, obj])
+        wsRef.current?.send(
+          JSON.stringify({ type: "objectAdd", payload: obj })
+        )
+        setIsDirty(true)
+        return
+      }
+      
+      if (mode === "rectangle") {
+        const obj: CanvasObject = {
+          id: crypto.randomUUID(),
+          type: "rectangle",
+          x,
+          y,
+          width: 150,
+          height: 100,
+          color: state.color,
+          strokeWidth: state.size,
+          rotation: 0,
+        }
+        setObjects((objs) => [...objs, obj])
+        wsRef.current?.send(
+          JSON.stringify({ type: "objectAdd", payload: obj })
+        )
+        setIsDirty(true)
+        return
+      }
+      
       if (mode === "draw" || mode === "erase") {
         drawing = true
         currentStroke = { mode, color, size, path: [{ x, y }] }
@@ -406,7 +468,7 @@ const CanvasPage: React.FC = () => {
       )
     )
     const updatedObject = objects.find(obj => obj.id === id)
-    if (updatedObject && (updatedObject.type === "image" || updatedObject.type === "text")) {
+    if (updatedObject && (updatedObject.type === "image" || updatedObject.type === "text" || updatedObject.type === "circle" || updatedObject.type === "rectangle")) {
       const newObj = { ...updatedObject, rotation }
       wsRef.current?.send(
         JSON.stringify({ type: "objectUpdate", payload: newObj })

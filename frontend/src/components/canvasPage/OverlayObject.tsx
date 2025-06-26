@@ -129,13 +129,40 @@ export const OverlayObject = React.memo<Props>(({
                         onStyleChange={(style) => updateObjectStyle(obj.id, style)}
                     />
                 );
+            case "circle":
+                return (
+                    <div
+                        className={commonClasses}
+                        style={{
+                            ...style,
+                            borderRadius: "50%",
+                            borderColor: obj.color,
+                            borderWidth: `${obj.strokeWidth}px`,
+                            borderStyle: "solid",
+                            backgroundColor: "transparent",
+                        }}
+                    />
+                );
+            case "rectangle":
+                return (
+                    <div
+                        className={commonClasses}
+                        style={{
+                            ...style,
+                            borderColor: obj.color,
+                            borderWidth: `${obj.strokeWidth}px`,
+                            borderStyle: "solid",
+                            backgroundColor: "transparent",
+                        }}
+                    />
+                );
             default:
                 return null;
         }
     };
 
     const transformed = useMemo(() => getTransformedProperties(), [obj, zoomFactor, canvasWidth, canvasHeight]);
-    const rotation = (obj.type === "image" || obj.type === "text") ? obj.rotation || 0 : 0;
+    const rotation = (obj.type === "image" || obj.type === "text" || obj.type === "circle" || obj.type === "rectangle") ? obj.rotation || 0 : 0;
 
     // Disable pointer events for draw/erase modes to allow painting through
     const shouldDisablePointerEvents = mode === 'draw' || mode === 'erase';
