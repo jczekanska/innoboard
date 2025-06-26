@@ -296,18 +296,36 @@ const CanvasPage: React.FC = () => {
   async function onInvite(e: React.FormEvent) {
     e.preventDefault()
     const email = (e.currentTarget as any).email.value as string
-    const resp = await fetch(`/api/canvases/${id}/invite`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ invitee_email: email }),
-    })
+    let resp: Response
+    try {
+      resp = await fetch(`/api/canvases/${id}/invite`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ invitee_email: email }),
+      })
+    } catch (err) {
+      console.error(err)
+      alert("Network error — could not send invite.")
+      return
+    }
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => resp.statusText)
+      console.error("Invite error:", text)
+      alert("Invite failed: " + (text || resp.statusText))
+      return
+    }
     const { token: inviteToken } = await resp.json()
     const link = `${window.location.origin}/join/${inviteToken}`
-    await navigator.clipboard.writeText(link)
-    alert(`Invite link copied:\n${link}`)
+    try {
+      await navigator.clipboard.writeText(link)
+      alert(`Invite link copied!\n\n${link}`)
+    } catch {
+      alert(`Invite link: ${link}`)
+    }
+    setIsShareOpen(false)
   }
 
   const toolbarProps: ToolbarProps = {
@@ -331,7 +349,10 @@ const CanvasPage: React.FC = () => {
   }
 
   return (
-    <Dialog>
+    <Dialog
+      open={isShareOpen}
+      onOpenChange={(open) => setIsShareOpen(open)}
+    >
       <div className="flex flex-col h-screen bg-gray-100">
         <Header
           onBack={() => toolbarProps.onDashboard()}
