@@ -206,9 +206,6 @@ const AuthPage: React.FC = () => {
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <Label htmlFor="password-login">Password</Label>
-                    <Button variant="link" className="p-0 text-xs">
-                      Forgot password?
-                    </Button>
                   </div>
                   <Input
                     id="password-login"

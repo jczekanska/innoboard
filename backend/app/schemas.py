@@ -45,3 +45,9 @@ class Invitation(InvitationBase):
     token: str
 
     model_config = ConfigDict(from_attributes=True)
+    
+class ChangeEmail(BaseModel):
+    current_password: str
+    new_email: EmailStr
+
+    model_config = ConfigDict(from_attributes=True)
