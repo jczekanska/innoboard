@@ -8,15 +8,12 @@ import React, {
 } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { Rnd, ResizeHandleStyles } from "react-rnd"
-
 import { AuthContext } from "@/context/AuthContext"
 import { useCanvasSettings } from "@/context/CanvasSettingsContext"
-
 import Header from "@/components/canvasPage/Header"
 import Toolbar, { ToolbarProps } from "@/components/canvasPage/Toolbar"
 import ToolsPanel from "@/components/canvasPage/ToolsPanel"
 import { LocationPicker } from "@/components/canvasPage/LocationPicker"
-
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -27,7 +24,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 
-type Mode = "draw" | "erase" | "text" | "move" | "select"
+type Mode = "draw" | "erase" | "text" | "move" | "select" | "image"
 
 interface TextBox {
   id: string
@@ -44,6 +41,15 @@ interface Stroke {
   color: string
   size: number
   path: { x: number; y: number }[]
+}
+
+interface ImageBox {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+  src: string
 }
 
 function linkifyText(text: string): ReactNode[] {
@@ -70,15 +76,15 @@ const CanvasPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { token } = useContext(AuthContext)
-
   const { state, dispatch } = useCanvasSettings()
   const { mode, color, size, zoom } = state
-
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const wsRef = useRef<WebSocket>()
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [canvasInfo, setCanvasInfo] = useState<{ name: string } | null>(null)
   const [texts, setTexts] = useState<TextBox[]>([])
   const [strokes, setStrokes] = useState<Stroke[]>([])
+  const [images, setImages] = useState<ImageBox[]>([])
   const [isDirty, setIsDirty] = useState(false)
   const [isShareOpen, setIsShareOpen] = useState(false)
 
@@ -101,16 +107,7 @@ const CanvasPage: React.FC = () => {
       .then(({ content }) => {
         setTexts(content.texts || [])
         setStrokes(content.strokes || [])
-        if (content.image && canvasRef.current) {
-          const ctx = canvasRef.current.getContext("2d")!
-          const img = new Image()
-          img.onload = () => {
-            ctx.clearRect(0, 0, 800, 600)
-            ctx.drawImage(img, 0, 0)
-            replayStrokes(ctx, content.strokes || [])
-          }
-          img.src = content.image
-        }
+        setImages(content.images || [])
       })
       .catch(console.error)
     setIsDirty(false)
@@ -126,27 +123,57 @@ const CanvasPage: React.FC = () => {
     return () => ws.close()
   }, [id, token])
 
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext("2d")!
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    replayStrokes(ctx, strokes)
+  }, [strokes, zoom])
+
   function handleRemote(msg: any) {
     const ctx = canvasRef.current?.getContext("2d")
-    if (msg.type === "draw" && ctx) {
-      const { x, y, color: c, size: s, mode: m } = msg.payload
-      ctx.lineWidth = s
-      ctx.strokeStyle = c
-      ctx.globalCompositeOperation =
-        m === "erase" ? "destination-out" : "source-over"
-      ctx.lineTo(x, y)
-      ctx.stroke()
-      setIsDirty(true)
-    }
-    if (msg.type === "textAdd") {
-      setTexts((ts) => [...ts, msg.payload])
-      setIsDirty(true)
-    }
-    if (msg.type === "textMove" || msg.type === "textResize") {
-      setTexts((ts) =>
-        ts.map((t) => (t.id === msg.payload.id ? msg.payload : t))
-      )
-      setIsDirty(true)
+    switch (msg.type) {
+      case "draw":
+        if (ctx) {
+          const { x, y, color: c, size: s, mode: m } = msg.payload
+          ctx.lineWidth = s
+          ctx.strokeStyle = c
+          ctx.globalCompositeOperation =
+            m === "erase" ? "destination-out" : "source-over"
+          ctx.lineTo(x, y)
+          ctx.stroke()
+          setIsDirty(true)
+        }
+        break
+      case "textAdd":
+        setTexts((ts) => [...ts, msg.payload])
+        setIsDirty(true)
+        break
+      case "textMove":
+      case "textResize":
+        setTexts((ts) =>
+          ts.map((t) => (t.id === msg.payload.id ? msg.payload : t))
+        )
+        setIsDirty(true)
+        break
+      case "imageAdd":
+        setImages((imgs) => [...imgs, msg.payload])
+        setIsDirty(true)
+        break
+      case "imageMove":
+      case "imageResize":
+        setImages((imgs) =>
+          imgs.map((i) =>
+            i.id === msg.payload.id ? { ...i, ...msg.payload } : i
+          )
+        )
+        setIsDirty(true)
+        break
+      case "imageDelete":
+        setImages((imgs) => imgs.filter((i) => i.id !== msg.payload.id))
+        setIsDirty(true)
+        break
     }
   }
 
@@ -165,13 +192,37 @@ const CanvasPage: React.FC = () => {
     })
   }
 
+  function onSelectFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!/\.(jpe?g|png|svg)$/i.test(file.name)) {
+      return alert("Unsupported image type")
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      const src = reader.result as string
+      const box: ImageBox = {
+        id: crypto.randomUUID(),
+        x: 50,
+        y: 50,
+        width: 200,
+        height: 200,
+        src,
+      }
+      setImages((imgs) => [...imgs, box])
+      wsRef.current?.send(JSON.stringify({ type: "imageAdd", payload: box }))
+      setIsDirty(true)
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ""
+  }
+
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext("2d")!
     let drawing = false
     let currentStroke: Stroke | null = null
-
     const toCanvas = (e: MouseEvent) => {
       const rect = canvas.getBoundingClientRect()
       return {
@@ -179,7 +230,6 @@ const CanvasPage: React.FC = () => {
         y: ((e.clientY - rect.top) * 100) / zoom,
       }
     }
-
     const onDown = (e: MouseEvent) => {
       const { x, y } = toCanvas(e)
       if (mode === "text") {
@@ -201,6 +251,10 @@ const CanvasPage: React.FC = () => {
         setIsDirty(true)
         return
       }
+      if (mode === "image") {
+        fileInputRef.current?.click()
+        return
+      }
       if (mode === "draw" || mode === "erase") {
         drawing = true
         currentStroke = { mode, color, size, path: [{ x, y }] }
@@ -208,7 +262,6 @@ const CanvasPage: React.FC = () => {
         ctx.moveTo(x, y)
       }
     }
-
     const onMove = (e: MouseEvent) => {
       if (!drawing || !currentStroke) return
       const { x, y } = toCanvas(e)
@@ -227,7 +280,6 @@ const CanvasPage: React.FC = () => {
       )
       setIsDirty(true)
     }
-
     const onUp = () => {
       if (drawing && currentStroke) {
         setStrokes((prev) => [...prev, currentStroke!])
@@ -236,7 +288,6 @@ const CanvasPage: React.FC = () => {
       drawing = false
       ctx.closePath()
     }
-
     canvas.addEventListener("mousedown", onDown as any)
     canvas.addEventListener("mousemove", onMove as any)
     canvas.addEventListener("mouseup", onUp as any)
@@ -249,24 +300,11 @@ const CanvasPage: React.FC = () => {
     }
   }, [mode, color, size, zoom])
 
-  function saveContent() {
-    const image = canvasRef.current?.toDataURL() ?? null
-    fetch(`/api/canvases/${id}/data`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ content: { image, texts, strokes } }),
-    })
-    setIsDirty(false)
-  }
-
-  function updateTextContent(id: string, text: string) {
+  const updateTextContent = (id: string, text: string) => {
     setTexts((ts) => ts.map((b) => (b.id === id ? { ...b, text } : b)))
     setIsDirty(true)
   }
-  function updateTextPosition(box: TextBox, d: { x: number; y: number }) {
+  const updateTextPosition = (box: TextBox, d: { x: number; y: number }) => {
     const updated = { ...box, x: d.x, y: d.y }
     setTexts((ts) => ts.map((t) => (t.id === box.id ? updated : t)))
     wsRef.current?.send(
@@ -274,11 +312,11 @@ const CanvasPage: React.FC = () => {
     )
     setIsDirty(true)
   }
-  function updateTextResize(
+  const updateTextResize = (
     box: TextBox,
     ref: HTMLElement,
     d: { x: number; y: number }
-  ) {
+  ) => {
     const updated = {
       ...box,
       width: parseInt(ref.style.width),
@@ -289,6 +327,35 @@ const CanvasPage: React.FC = () => {
     setTexts((ts) => ts.map((t) => (t.id === box.id ? updated : t)))
     wsRef.current?.send(
       JSON.stringify({ type: "textResize", payload: updated })
+    )
+    setIsDirty(true)
+  }
+
+  function updateImagePosition(id: string, x: number, y: number) {
+    const updated = images.map((i) => (i.id === id ? { ...i, x, y } : i))
+    setImages(updated)
+    wsRef.current?.send(
+      JSON.stringify({ type: "imageMove", payload: { id, x, y } })
+    )
+    setIsDirty(true)
+  }
+  function updateImageResize(
+    id: string,
+    payload: { width: number; height: number; x: number; y: number }
+  ) {
+    const updated = images.map((i) =>
+      i.id === id ? { ...i, ...payload } : i
+    )
+    setImages(updated)
+    wsRef.current?.send(
+      JSON.stringify({ type: "imageResize", payload: { id, ...payload } })
+    )
+    setIsDirty(true)
+  }
+  function deleteImage(id: string) {
+    setImages((imgs) => imgs.filter((i) => i.id !== id))
+    wsRef.current?.send(
+      JSON.stringify({ type: "imageDelete", payload: { id } })
     )
     setIsDirty(true)
   }
@@ -328,6 +395,47 @@ const CanvasPage: React.FC = () => {
     setIsShareOpen(false)
   }
 
+  function saveContent() {
+    fetch(`/api/canvases/${id}/data`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ content: { texts, strokes, images } }),
+    })
+    setIsDirty(false)
+  }
+
+  const resizeHandles: ResizeHandleStyles = {
+    top: { height: 10, top: -5, cursor: "ns-resize" },
+    bottom: { height: 10, bottom: -5, cursor: "ns-resize" },
+    left: { width: 10, left: -5, cursor: "ew-resize" },
+    right: { width: 10, right: -5, cursor: "ew-resize" },
+    topLeft: { width: 10, height: 10, left: -5, top: -5, cursor: "nwse-resize" },
+    topRight: {
+      width: 10,
+      height: 10,
+      right: -5,
+      top: -5,
+      cursor: "nesw-resize",
+    },
+    bottomLeft: {
+      width: 10,
+      height: 10,
+      left: -5,
+      bottom: -5,
+      cursor: "nesw-resize",
+    },
+    bottomRight: {
+      width: 10,
+      height: 10,
+      right: -5,
+      bottom: -5,
+      cursor: "nwse-resize",
+    },
+  }
+
   const toolbarProps: ToolbarProps = {
     onSave: saveContent,
     onShare: () => setIsShareOpen(true),
@@ -337,34 +445,40 @@ const CanvasPage: React.FC = () => {
     },
   }
 
-  const textHandles: ResizeHandleStyles = {
-    top: { height: 10, top: -5, cursor: "ns-resize" },
-    bottom: { height: 10, bottom: -5, cursor: "ns-resize" },
-    left: { width: 10, left: -5, cursor: "ew-resize" },
-    right: { width: 10, right: -5, cursor: "ew-resize" },
-    topLeft: { width: 10, height: 10, left: -5, top: -5, cursor: "nwse-resize" },
-    topRight: { width: 10, height: 10, right: -5, top: -5, cursor: "nesw-resize" },
-    bottomLeft: { width: 10, height: 10, left: -5, bottom: -5, cursor: "nesw-resize" },
-    bottomRight: { width: 10, height: 10, right: -5, bottom: -5, cursor: "nwse-resize" },
-  }
-
   return (
-    <Dialog
-      open={isShareOpen}
-      onOpenChange={(open) => setIsShareOpen(open)}
-    >
+    <Dialog open={isShareOpen} onOpenChange={(o) => setIsShareOpen(o)}>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".png,.jpg,.jpeg,.svg"
+        className="hidden"
+        onChange={onSelectFile}
+      />
+      <button
+        className="absolute top-4 right-4 z-20 bg-white p-2 rounded shadow"
+        onClick={() => fileInputRef.current?.click()}
+      >
+        Upload Image
+      </button>
       <div className="flex flex-col h-screen bg-gray-100">
         <Header
-          onBack={() => toolbarProps.onDashboard()}
+          onBack={toolbarProps.onDashboard}
           name={canvasInfo?.name ?? "(untitled)"}
-          onShare={() => toolbarProps.onShare()}
+          onShare={toolbarProps.onShare}
         />
-
         <div className="flex flex-1 pt-13">
           <Toolbar {...toolbarProps} />
-
           <main className="flex-1 relative overflow-auto grid place-items-center p-6">
-            <div className="relative">
+            <div
+              className="relative"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault()
+                const file = e.dataTransfer.files[0]
+                const fake = { target: { files: [file] } } as any
+                onSelectFile(fake)
+              }}
+            >
               <canvas
                 ref={canvasRef}
                 width={800}
@@ -380,7 +494,7 @@ const CanvasPage: React.FC = () => {
                   bounds="parent"
                   disableDragging={mode !== "move"}
                   enableResizing={mode === "move"}
-                  resizeHandleStyles={mode === "move" ? textHandles : {}}
+                  resizeHandleStyles={mode === "move" ? resizeHandles : {}}
                   style={{
                     pointerEvents:
                       mode === "move" || mode === "select"
@@ -412,13 +526,49 @@ const CanvasPage: React.FC = () => {
                   )}
                 </Rnd>
               ))}
+              {images.map((img) => (
+                <Rnd
+                  key={img.id}
+                  size={{ width: img.width, height: img.height }}
+                  position={{ x: img.x, y: img.y }}
+                  bounds="parent"
+                  disableDragging={mode !== "move"}
+                  enableResizing={mode === "move"}
+                  resizeHandleStyles={mode === "move" ? resizeHandles : {}}
+                  onDragStop={(_, d) =>
+                    updateImagePosition(img.id, d.x, d.y)
+                  }
+                  onResizeStop={(_, __, ref, ___, d) =>
+                    updateImageResize(img.id, {
+                      width: parseInt(ref.style.width),
+                      height: parseInt(ref.style.height),
+                      x: d.x,
+                      y: d.y,
+                    })
+                  }
+                >
+                  <div className="relative">
+                    <img
+                      src={img.src}
+                      className="w-full h-full object-contain"
+                      draggable={false}
+                    />
+                    {mode === "move" && (
+                      <button
+                        className="absolute top-0 right-0 bg-white rounded-full p-1"
+                        onClick={() => deleteImage(img.id)}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                </Rnd>
+              ))}
             </div>
           </main>
-
           <ToolsPanel />
         </div>
       </div>
-
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Invite someone</DialogTitle>
@@ -435,7 +585,6 @@ const CanvasPage: React.FC = () => {
           </DialogFooter>
         </form>
       </DialogContent>
-
       <LocationPicker
         isOpen={false}
         onClose={() => {}}

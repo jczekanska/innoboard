@@ -1,6 +1,6 @@
 # Innoboard
 
-No user-friendly UI yet :)
+A collaborative app that allows users to draw on a canvas in real time and more!
 
 ## Setup
 
@@ -27,7 +27,7 @@ No user-friendly UI yet :)
 - [x] As a canvas owner, I must be able to share my canvas, so that I can collaborate with others in real time.
 - [x] As a logged user,​ I must be able to join a collaborative canvas,​ so that I can work on it with others in real time.
 - [x] As an editor,​ I should be able to add and click hyperlinks in text boxes,​ so that I can reference and access external resources easily.
-- [ ] As an editor,​ I should be able to add my own images to the drawing board,​ so that I can illustrate ideas or include visual references.
+- [x] As an editor,​ I should be able to add my own images to the drawing board,​ so that I can illustrate ideas or include visual references.
 - [ ] As an owner,​ I should be able to manage invite links,​ so that I can track access and control how people join my canvas.
 - [ ] As an editor,​ I should be able to see the full list of members, along with their role,​
 So that I can understand who has access and at what level.
