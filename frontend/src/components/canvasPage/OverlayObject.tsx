@@ -125,7 +125,7 @@ export const OverlayObject = React.memo<Props>(({
                         isDragging={isDragging}
                         isRotating={isRotating}
                         isResizing={isResizing}
-                        isSelected={isSelected}
+                        isSelected={selectedId === obj.id}
                         onTextChange={(text) => updateObjectText(obj.id, text)}
                         onStyleChange={(style) => updateObjectStyle(obj.id, style)}
                     />
