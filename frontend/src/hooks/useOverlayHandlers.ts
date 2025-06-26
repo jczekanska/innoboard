@@ -79,6 +79,10 @@ export const useOverlayHandlers = ({
             const startHeight = obj.height;
             const rect = e.currentTarget.getBoundingClientRect();
             
+            // Calculate center of the shape
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            
             // Determine which edge is being dragged based on mouse position
             const relativeX = e.clientX - rect.left;
             const relativeY = e.clientY - rect.top;
@@ -97,8 +101,19 @@ export const useOverlayHandlers = ({
             }
 
             const onMove = (ev: PointerEvent) => {
-                const deltaX = toCanvas(ev.clientX - startX);
-                const deltaY = toCanvas(ev.clientY - startY);
+                // Calculate movement relative to center
+                const currentDistanceFromCenterX = ev.clientX - centerX;
+                const currentDistanceFromCenterY = ev.clientY - centerY;
+                const startDistanceFromCenterX = startX - centerX;
+                const startDistanceFromCenterY = startY - centerY;
+                
+                // Calculate how much the distance from center has changed
+                const deltaDistanceX = Math.abs(currentDistanceFromCenterX) - Math.abs(startDistanceFromCenterX);
+                const deltaDistanceY = Math.abs(currentDistanceFromCenterY) - Math.abs(startDistanceFromCenterY);
+                
+                // Convert to canvas coordinates and apply 2x factor since we're measuring from center
+                const deltaX = toCanvas(deltaDistanceX * 2);
+                const deltaY = toCanvas(deltaDistanceY * 2);
                 
                 let newWidth = startWidth;
                 let newHeight = startHeight;
