@@ -11,6 +11,7 @@ import { Rnd, ResizeHandleStyles } from "react-rnd"
 
 import { AuthContext } from "@/context/AuthContext"
 import { useCanvasSettings } from "@/context/CanvasSettingsContext"
+import { createApiCall } from "@/lib/api"
 
 import Header from "@/components/canvasPage/Header"
 import Toolbar, { ToolbarProps } from "@/components/canvasPage/Toolbar"
@@ -69,7 +70,8 @@ function linkifyText(text: string): ReactNode[] {
 const CanvasPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { token } = useContext(AuthContext)
+  const { token, logout } = useContext(AuthContext)
+  const apiCall = createApiCall({ token, logout })
 
   const { state, dispatch } = useCanvasSettings()
   const { mode, color, size, zoom } = state
@@ -84,9 +86,7 @@ const CanvasPage: React.FC = () => {
 
   useEffect(() => {
     if (!token || !id) return
-    fetch(`/api/canvases/${id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    apiCall(`/api/canvases/${id}`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then(setCanvasInfo)
       .catch(() => navigate("/dashboard"))
@@ -94,9 +94,7 @@ const CanvasPage: React.FC = () => {
 
   useEffect(() => {
     if (!token || !id) return
-    fetch(`/api/canvases/${id}/data`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    apiCall(`/api/canvases/${id}/data`)
       .then((r) => r.json())
       .then(({ content }) => {
         setTexts(content.texts || [])
@@ -251,12 +249,8 @@ const CanvasPage: React.FC = () => {
 
   function saveContent() {
     const image = canvasRef.current?.toDataURL() ?? null
-    fetch(`/api/canvases/${id}/data`, {
+    apiCall(`/api/canvases/${id}/data`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
       body: JSON.stringify({ content: { image, texts, strokes } }),
     })
     setIsDirty(false)
@@ -296,12 +290,8 @@ const CanvasPage: React.FC = () => {
   async function onInvite(e: React.FormEvent) {
     e.preventDefault()
     const email = (e.currentTarget as any).email.value as string
-    const resp = await fetch(`/api/canvases/${id}/invite`, {
+    const resp = await apiCall(`/api/canvases/${id}/invite`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
       body: JSON.stringify({ invitee_email: email }),
     })
     const { token: inviteToken } = await resp.json()
