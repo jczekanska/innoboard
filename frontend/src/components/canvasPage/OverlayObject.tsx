@@ -17,6 +17,8 @@ interface Props {
     deleteObject: (id: string) => void;
     canvasWidth: number;
     canvasHeight: number;
+    selectedId: string | null;
+    onSelect: (id: string) => void;
 }
 
 // Helper functions for coordinate transformations
@@ -39,7 +41,9 @@ export const OverlayObject = React.memo<Props>(({
     updateObjectStyle,
     deleteObject,
     canvasWidth,
-    canvasHeight
+    canvasHeight,
+    selectedId,
+    onSelect
 }) => {
     const { state } = useCanvasSettings();
     const { zoom, mode } = state;
@@ -135,6 +139,18 @@ export const OverlayObject = React.memo<Props>(({
 
     // Disable pointer events for draw/erase modes to allow painting through
     const shouldDisablePointerEvents = mode === 'draw' || mode === 'erase';
+    
+    // Handle selection in select mode
+    const handleClick = (e: React.MouseEvent) => {
+        if (mode === 'select') {
+            e.stopPropagation();
+            onSelect(obj.id);
+        }
+    };
+    
+    // Add selection outline for selected objects
+    const isSelected = selectedId === obj.id;
+    const selectionOutline = isSelected && mode === 'select' ? '2px dashed #3b82f6' : 'none';
 
     return (
         <div
@@ -143,11 +159,13 @@ export const OverlayObject = React.memo<Props>(({
                 transform: `rotate(${rotation}deg)`,
                 left: transformed.x,
                 top: transformed.y,
-                cursor: getCursor(),
+                cursor: mode === 'select' ? 'pointer' : getCursor(),
                 pointerEvents: shouldDisablePointerEvents ? 'none' : 'auto',
+                outline: selectionOutline,
             }}
             draggable={false}
-            onPointerDown={shouldDisablePointerEvents ? undefined : getPointerHandler()}
+            onPointerDown={shouldDisablePointerEvents ? undefined : (mode === 'select' ? undefined : getPointerHandler())}
+            onClick={handleClick}
         >
             {renderObjectContent(transformed.width, transformed.height)}
         </div>

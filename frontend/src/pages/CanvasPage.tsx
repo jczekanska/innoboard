@@ -67,6 +67,8 @@ const CanvasPage: React.FC = () => {
   const [isShareOpen, setIsShareOpen] = useState(false)
   const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false)
   const [pendingLocationCoords, setPendingLocationCoords] = useState<{ x: number; y: number } | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [clipboard, setClipboard] = useState<CanvasObject | null>(null)
 
   useEffect(() => {
     if (!token || !id) return
@@ -328,6 +330,50 @@ const CanvasPage: React.FC = () => {
     }
   }, [mode, color, size, zoom])
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      console.log('Key pressed:', e.key, 'Ctrl:', e.ctrlKey, 'Meta:', e.metaKey, 'Selected ID:', selectedId)
+      
+      // Check for Ctrl on Windows/Linux or Cmd (Meta) on macOS
+      const isModifierPressed = e.ctrlKey || e.metaKey
+      if (!isModifierPressed) return
+
+      if (e.key.toLowerCase() === "c" && selectedId) {
+        e.preventDefault()
+        console.log('Attempting to copy object with ID:', selectedId)
+        const foundObject = objects.find((obj) => obj.id === selectedId)
+        console.log('Found object:', foundObject)
+        if (!foundObject) return
+
+        const clone = { ...foundObject, id: crypto.randomUUID() }
+        setClipboard(clone)
+        console.log('Object copied to clipboard:', clone)
+      }
+
+      if (e.key.toLowerCase() === "v" && clipboard) {
+        e.preventDefault()
+        console.log('Attempting to paste from clipboard:', clipboard)
+        const pasted = {
+          ...clipboard,
+          x: clipboard.x + 10,
+          y: clipboard.y + 10,
+          id: crypto.randomUUID(),
+        }
+
+        console.log('Creating pasted object:', pasted)
+        setObjects((objs) => [...objs, pasted])
+        wsRef.current?.send(JSON.stringify({ type: "objectAdd", payload: pasted }))
+
+        setSelectedId(pasted.id)
+        setClipboard({ ...pasted, id: crypto.randomUUID() })
+        setIsDirty(true)
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [selectedId, clipboard, objects])
+
   function saveContent() {
     const image = canvasRef.current?.toDataURL() ?? null
     apiCall(`/api/canvases/${id}/data`, {
@@ -506,6 +552,8 @@ const CanvasPage: React.FC = () => {
                   deleteObject={deleteObject}
                   canvasWidth={800}
                   canvasHeight={600}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
                 />
               ))}
             </div>
