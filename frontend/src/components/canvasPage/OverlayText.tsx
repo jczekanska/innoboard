@@ -13,6 +13,7 @@ interface OverlayTextProps {
     isDragging: boolean;
     isRotating: boolean;
     isResizing: boolean;
+    isSelected: boolean;
     onTextChange: (text: string) => void;
     onStyleChange: (style: { color?: string; fontSize?: number; fontFamily?: string }) => void;
 }
@@ -29,6 +30,7 @@ export const OverlayText = ({
     isDragging,
     isRotating,
     isResizing,
+    isSelected,
     onTextChange,
     onStyleChange,
 }: OverlayTextProps) => {
@@ -72,9 +74,10 @@ export const OverlayText = ({
         }
     }, []);
 
-    // Apply font changes when editing and settings change
+    // Apply font changes when selected (editing or just selected) and settings change
     useEffect(() => {
-        if (!isEditing) return;
+        // Only apply changes if the text is selected (either editing or just selected)
+        if (!isSelected) return;
 
         // Check if any font settings have changed from current text object settings
         const hasChanges =
@@ -90,7 +93,7 @@ export const OverlayText = ({
                 color: state.color,
             });
         }
-    }, [state.fontFamily, state.fontSize, state.color, isEditing, fontFamily, fontSize, color, onStyleChange]);
+    }, [state.fontFamily, state.fontSize, state.color, isSelected, fontFamily, fontSize, color, onStyleChange]);
 
     const textStyle = {
         color,
