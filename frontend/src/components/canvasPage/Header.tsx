@@ -7,9 +7,10 @@ export type HeaderProps = {
   onBack: () => void
   name: string
   onRename: (newName: string) => void
+  onShare: () => void
 }
 
-const Header: React.FC<HeaderProps> = ({ onBack, name, onRename }) => {
+const Header: React.FC<HeaderProps> = ({ onBack, name, onRename, onShare }) => {
   return (
     <header className="flex absolute items-center w-screen h-13 bg-white px-3 border-b-1 z-20">
       <div className="flex items-center w-full gap-4">
@@ -36,7 +37,10 @@ const Header: React.FC<HeaderProps> = ({ onBack, name, onRename }) => {
 
       <div className="flex items-center w-full justify-end">
         <DialogTrigger asChild>
-          <button className="flex items-center border py-1 px-3 gap-1.5 rounded-xl bg-white hover:scale-105 duration-150">
+          <button
+            className="flex items-center border py-1 px-3 gap-1.5 rounded-xl bg-white hover:scale-105 duration-150"
+            onClick={onShare}
+            >
             <Share2 className="w-4" />
             <span>Share</span>
           </button>

@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr, ConfigDict
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, Optional, Literal
 
 class UserCreate(BaseModel):
     email: EmailStr
@@ -37,11 +37,29 @@ class InvitationBase(BaseModel):
     invitee_email: str
 
 class InvitationCreate(InvitationBase):
-    pass
+    expiry_hours: Optional[int] = None
 
 class Invitation(InvitationBase):
     id: int
     canvas_id: int
     token: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class InviteOut(BaseModel):
+    token: str
+    invitee_email: str
+    expires_at: Optional[datetime]
+    disabled: bool
+    join_count: int
+
+    class Config:
+        orm_mode = True
+
+
+class MemberOut(BaseModel):
+    email: EmailStr
+    role: Literal["owner", "editor"]
 
     model_config = ConfigDict(from_attributes=True)

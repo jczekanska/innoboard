@@ -1,9 +1,12 @@
 import secrets
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from .models import User, Canvas, Invitation
 from .auth import get_password_hash
+from typing import Optional
+from datetime import datetime, timedelta
 
 async def get_user_by_email(db: AsyncSession, email: str):
     result = await db.execute(select(User).where(User.email == email))
@@ -50,9 +53,17 @@ async def delete_canvas(db: AsyncSession, canvas_id: int):
         await db.commit()
     return canvas
 
-async def create_invitation(db: AsyncSession, canvas_id: int, email: str):
+async def create_invitation(db: AsyncSession, canvas_id: int, email: str, expiry_hours: Optional[int] = None):
     token = secrets.token_urlsafe(32)
-    inv = Invitation(canvas_id=canvas_id, invitee_email=email, token=token)
+    inv = Invitation(
+        canvas_id=canvas_id, 
+        invitee_email=email, 
+        token=token,
+        expires_at=(
+            datetime.utcnow() + timedelta(hours=expiry_hours)
+            if expiry_hours is not None
+            else None
+        ),)
     db.add(inv)
     await db.commit()
     await db.refresh(inv)
@@ -80,3 +91,33 @@ async def save_canvas_data(db: AsyncSession, canvas_id: int, data: dict):
 async def get_invitation_by_token(db: AsyncSession, token: str):
     result = await db.execute(select(Invitation).where(Invitation.token == token))
     return result.scalars().first()
+
+
+async def get_canvas_members(db: AsyncSession, canvas_id: int):
+    result = await db.execute(
+        select(Canvas)
+        .where(Canvas.id == canvas_id)
+        .options(selectinload(Canvas.invitations))
+    )
+    canvas: Canvas = result.scalars().first()
+    if not canvas:
+        return None
+
+    members = []
+    members.append({"email": canvas.owner.email, "role": "owner"})
+    for inv in canvas.invitations:
+        members.append({"email": inv.invitee_email, "role": "editor"})
+    return members
+
+async def delete_invitation(db: AsyncSession, canvas_id: int, token: str):
+    result = await db.execute(
+        select(Invitation)
+        .where(Invitation.canvas_id == canvas_id)
+        .where(Invitation.token == token)
+    )
+    inv = result.scalars().first()
+    if not inv:
+        return False
+    await db.delete(inv)
+    await db.commit()
+    return True

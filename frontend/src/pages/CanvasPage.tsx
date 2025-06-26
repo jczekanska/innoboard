@@ -25,7 +25,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 
 type Mode = "draw" | "erase" | "text" | "move" | "select"
 
@@ -66,6 +65,14 @@ function linkifyText(text: string): ReactNode[] {
   )
 }
 
+type InviteLink = {
+  token: string
+  link: string
+  expiresAt: string | null
+  disabled: boolean
+  joinCount: number
+}
+
 const CanvasPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -81,6 +88,9 @@ const CanvasPage: React.FC = () => {
   const [strokes, setStrokes] = useState<Stroke[]>([])
   const [isDirty, setIsDirty] = useState(false)
   const [isShareOpen, setIsShareOpen] = useState(false)
+  const [inviteExpiry, setInviteExpiry] = useState<"24h" | "7d" | "never">("24h")
+  const [inviteLinks, setInviteLinks] = useState<InviteLink[]>([])
+  const [loadingLinks, setLoadingLinks] = useState(false)
 
   useEffect(() => {
     if (!token || !id) return
@@ -262,75 +272,155 @@ const CanvasPage: React.FC = () => {
     setIsDirty(false)
   }
 
-  function updateTextContent(id: string, text: string) {
-    setTexts((ts) => ts.map((b) => (b.id === id ? { ...b, text } : b)))
-    setIsDirty(true)
-  }
-  function updateTextPosition(box: TextBox, d: { x: number; y: number }) {
-    const updated = { ...box, x: d.x, y: d.y }
-    setTexts((ts) => ts.map((t) => (t.id === box.id ? updated : t)))
-    wsRef.current?.send(
-      JSON.stringify({ type: "textMove", payload: updated })
-    )
-    setIsDirty(true)
-  }
-  function updateTextResize(
-    box: TextBox,
-    ref: HTMLElement,
-    d: { x: number; y: number }
-  ) {
-    const updated = {
-      ...box,
-      width: parseInt(ref.style.width),
-      height: parseInt(ref.style.height),
-      x: d.x,
-      y: d.y,
+  async function onRename(newName: string) {
+    if (!id || !token) return
+    try {
+      const resp = await fetch(`/api/canvases/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name: newName }),
+      })
+      if (!resp.ok) throw new Error(await resp.text())
+      const updated = await resp.json()
+      setCanvasInfo(updated)
+    } catch (err: any) {
+      console.error("Rename failed:", err)
+      alert("Could not rename canvas: " + err.message)
     }
-    setTexts((ts) => ts.map((t) => (t.id === box.id ? updated : t)))
-    wsRef.current?.send(
-      JSON.stringify({ type: "textResize", payload: updated })
-    )
-    setIsDirty(true)
+  }
+
+  async function loadInvites() {
+    if (!id || !token) return
+    setLoadingLinks(true)
+    try {
+      const resp = await fetch(`/api/canvases/${id}/invite`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!resp.ok) throw new Error(resp.statusText)
+      const data: Array<{
+        token: string
+        expires_at: string | null
+        disabled: boolean
+        join_count: number
+      }> = await resp.json()
+
+      setInviteLinks(
+        data.map(inv => ({
+          token: inv.token,
+          link: `${window.location.origin}/join/${inv.token}`,
+          expiresAt: inv.expires_at,
+          disabled: inv.disabled,
+          joinCount: inv.join_count,
+        }))
+      )
+    } catch (e) {
+      console.error("Load invites failed:", e)
+      alert("Could not load invite links.")
+    } finally {
+      setLoadingLinks(false)
+    }
+  }
+
+  const openSharePanel = () => {
+    loadInvites()
+    setIsShareOpen(true)
   }
 
   async function onInvite(e: React.FormEvent) {
     e.preventDefault()
-    const email = (e.currentTarget as any).email.value as string
-    let resp: Response
+    const form = e.currentTarget as any
+    const email = form.email.value as string
+
+    let expiryHours: number | null = null
+    if (inviteExpiry === "24h") expiryHours = 24
+    if (inviteExpiry === "7d") expiryHours = 24 * 7
+
     try {
-      resp = await fetch(`/api/canvases/${id}/invite`, {
+      const resp = await fetch(`/api/canvases/${id}/invite`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ invitee_email: email }),
+        body: JSON.stringify({ invitee_email: email, expiry_hours: expiryHours }),
       })
-    } catch (err) {
-      console.error(err)
-      alert("Network error — could not send invite.")
-      return
+      if (!resp.ok) throw new Error(await resp.text())
+      form.reset()
+      await loadInvites()
+      const { token: newToken } = await resp.json()
+      navigator.clipboard.writeText(`${window.location.origin}/join/${newToken}`)
+      alert("Invite created and link copied!")
+    } catch (err: any) {
+      console.error("Invite failed:", err)
+      alert("Invite failed: " + err.message)
     }
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => resp.statusText)
-      console.error("Invite error:", text)
-      alert("Invite failed: " + (text || resp.statusText))
-      return
-    }
-    const { token: inviteToken } = await resp.json()
-    const link = `${window.location.origin}/join/${inviteToken}`
+  }
+
+  const disableInvite = async (tok: string) => {
     try {
-      await navigator.clipboard.writeText(link)
-      alert(`Invite link copied!\n\n${link}`)
-    } catch {
-      alert(`Invite link: ${link}`)
+      const resp = await fetch(
+        `/api/canvases/${id}/invite/${tok}/disable`,
+        {
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      )
+      if (!resp.ok) throw new Error(resp.statusText)
+      await loadInvites()
+    } catch (e) {
+      console.error(e)
+      alert("Failed to disable invite.")
     }
-    setIsShareOpen(false)
+  }
+
+  const activateInvite = async (tok: string) => {
+    try {
+      const resp = await fetch(
+        `/api/canvases/${id}/invite/${tok}/activate`,
+        {
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      )
+      if (!resp.ok) throw new Error(resp.statusText)
+      await loadInvites()
+    } catch (e) {
+      console.error(e)
+      alert("Failed to activate invite.")
+    }
+  }
+
+  const deleteInvite = async (tok: string) => {
+    if (!confirm("Delete this invite permanently?")) return
+    try {
+      const resp = await fetch(
+        `/api/canvases/${id}/invite/${tok}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      )
+      if (!resp.ok) throw new Error(resp.statusText)
+      await loadInvites()
+    } catch (e) {
+      console.error(e)
+      alert("Failed to delete invite.")
+    }
+  }
+
+  const getStatus = (inv: InviteLink) => {
+    if (inv.disabled) return "Disabled"
+    if (inv.expiresAt && new Date(inv.expiresAt + "Z") < new Date())
+      return "Expired"
+    return "Active"
   }
 
   const toolbarProps: ToolbarProps = {
     onSave: saveContent,
-    onShare: () => setIsShareOpen(true),
+    onShare: openSharePanel,
     onDashboard: () => {
       if (isDirty && !confirm("Discard unsaved changes?")) return
       navigate("/dashboard")
@@ -349,15 +439,13 @@ const CanvasPage: React.FC = () => {
   }
 
   return (
-    <Dialog
-      open={isShareOpen}
-      onOpenChange={(open) => setIsShareOpen(open)}
-    >
+    <Dialog open={isShareOpen} onOpenChange={setIsShareOpen}>
       <div className="flex flex-col h-screen bg-gray-100">
         <Header
-          onBack={() => toolbarProps.onDashboard()}
+          onBack={toolbarProps.onDashboard}
           name={canvasInfo?.name ?? "(untitled)"}
-          onShare={() => toolbarProps.onShare()}
+          onRename={onRename}
+          onShare={openSharePanel}
         />
 
         <div className="flex flex-1 pt-13">
@@ -419,21 +507,122 @@ const CanvasPage: React.FC = () => {
         </div>
       </div>
 
-      <DialogContent>
+      <DialogContent className="space-y-4 max-w-lg">
         <DialogHeader>
-          <DialogTitle>Invite someone</DialogTitle>
+          <DialogTitle>Manage Invites</DialogTitle>
         </DialogHeader>
+
         <form onSubmit={onInvite} className="space-y-4">
-          <Input
+          <input
             name="email"
             type="email"
             placeholder="friend@example.com"
             required
+            className="w-full p-2 border rounded"
           />
+          <div>
+            <label className="block mb-1">Expires in</label>
+            <select
+              value={inviteExpiry}
+              onChange={e =>
+                setInviteExpiry(
+                  e.target.value as "24h" | "7d" | "never"
+                )
+              }
+              className="w-full p-2 border rounded"
+            >
+              <option value="24h">24 hours</option>
+              <option value="7d">7 days</option>
+              <option value="never">No expiry</option>
+            </select>
+          </div>
           <DialogFooter>
-            <Button type="submit">Send Invite</Button>
+            <Button type="submit">Create Invite</Button>
           </DialogFooter>
         </form>
+
+        {loadingLinks ? (
+          <p>Loading invites…</p>
+        ) : inviteLinks.length === 0 ? (
+          <p className="italic text-sm">
+            No invites yet.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {inviteLinks.map(inv => {
+              const status = getStatus(inv)
+              const expiresLabel = inv.expiresAt
+                ? new Date(inv.expiresAt + "Z").toLocaleString("default", {
+                    timeZone: "Europe/Warsaw",
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })
+                : "Never"
+
+              return (
+                <li
+                  key={inv.token}
+                  className="p-3 border rounded space-y-1"
+                >
+                  <a
+                    href={inv.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline text-blue-600 break-all"
+                  >
+                    {inv.link}
+                  </a>
+                  <div className="text-sm text-gray-600 flex flex-wrap gap-4">
+                    <span>
+                      Status: <strong>{status}</strong>
+                    </span>
+                    <span>
+                      Expires: {expiresLabel}
+                    </span>
+                    <span>
+                      Joins: {inv.joinCount}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    {!inv.disabled && status === "Active" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          disableInvite(inv.token)
+                        }
+                      >
+                        Disable
+                      </Button>
+                    )}
+                    {inv.disabled && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() =>
+                          activateInvite(inv.token)
+                        }
+                      >
+                        Activate
+                      </Button>
+                    )}
+                    {(inv.disabled || status === "Expired") && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="text-red-600"
+                        onClick={() =>
+                          deleteInvite(inv.token)
+                        }
+                      >
+                        Delete
+                      </Button>
+                    )}
+                  </div>
+                </li>
+            )})}
+          </ul>
+        )}
       </DialogContent>
 
       <LocationPicker

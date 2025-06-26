@@ -24,7 +24,7 @@ from sqlalchemy.orm import selectinload
 from . import models, schemas, crud, auth
 from .database import async_session, sync_engine, Base
 from .auth import oauth2_scheme, decode_token
-from .schemas import InvitationCreate, CanvasData
+from .schemas import InvitationCreate, CanvasData, InviteOut, Invitation
 from .crud import (
     get_canvas,
     create_invitation,
@@ -162,17 +162,99 @@ async def api_delete_canvas(
     await crud.delete_canvas(db, canvas_id)
     return
 
+
+@app.get("/canvases/{canvas_id}/invite", response_model=List[InviteOut])
+async def list_invites(
+    canvas_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    canvas = await crud.get_canvas(db, canvas_id)
+    if canvas is None or canvas.owner_id != current_user.id:
+        raise HTTPException(404, "Canvas not found")
+
+    result = await db.execute(
+        select(models.Invitation)
+        .where(models.Invitation.canvas_id == canvas_id)
+    )
+    invites = result.scalars().all()
+    return invites
+
 @app.post("/canvases/{canvas_id}/invite", response_model=schemas.Invitation)
 async def invite_user(
     canvas_id: int,
-    payload: InvitationCreate,
+    payload: schemas.InvitationCreate,
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
     canvas = await crud.get_canvas(db, canvas_id)
     if not canvas or canvas.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Forbidden")
-    return await create_invitation(db, canvas_id, payload.invitee_email)
+    return await crud.create_invitation(
+        db,
+        canvas_id,
+        payload.invitee_email,
+        payload.expiry_hours,
+    )
+
+@app.patch("/canvases/{canvas_id}/invite/{token}/disable", response_model=schemas.InviteOut)
+async def disable_invite(
+    canvas_id: int,
+    token: str,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    canvas = await crud.get_canvas(db, canvas_id)
+    if not canvas or canvas.owner_id != current_user.id:
+        raise HTTPException(404, "Canvas not found")
+
+    inv = await crud.get_invitation_by_token(db, token)
+    if not inv or inv.canvas_id != canvas_id:
+        raise HTTPException(404, "Invitation not found")
+
+    inv.disabled = True
+    await db.commit()
+    await db.refresh(inv)
+    return inv
+
+@app.patch("/canvases/{canvas_id}/invite/{token}/activate", response_model=schemas.InviteOut)
+async def activate_invite(
+    canvas_id: int,
+    token: str,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    canvas = await crud.get_canvas(db, canvas_id)
+    if not canvas or canvas.owner_id != current_user.id:
+        raise HTTPException(404, "Canvas not found")
+
+    inv = await crud.get_invitation_by_token(db, token)
+    if not inv or inv.canvas_id != canvas_id:
+        raise HTTPException(404, "Invitation not found")
+
+    inv.disabled = False
+    await db.commit()
+    await db.refresh(inv)
+    return inv
+
+@app.delete(
+    "/canvases/{canvas_id}/invite/{token}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def api_delete_invite(
+    canvas_id: int,
+    token: str,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    canvas = await crud.get_canvas(db, canvas_id)
+    if not canvas or canvas.owner_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Canvas not found or unauthorized")
+
+    success = await crud.delete_invitation(db, canvas_id, token)
+    if not success:
+        raise HTTPException(status_code=404, detail="Invitation not found")
+
 
 @app.get("/invitations", response_model=List[schemas.Invitation])
 async def list_invitations(
@@ -188,8 +270,21 @@ async def join_canvas(
     current_user=Depends(get_current_user),
 ):
     inv = await get_invitation_by_token(db, token)
-    if not inv or inv.invitee_email.lower() != current_user.email.lower():
+    if (
+        not inv
+        or inv.invitee_email.lower() != current_user.email.lower()
+    ):
         raise HTTPException(status_code=404, detail="Invitation not found or unauthorized")
+
+    if inv.disabled:
+        raise HTTPException(status_code=403, detail="Invitation has been disabled")
+
+    if inv.expires_at and inv.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=403, detail="Invitation has expired")
+
+    inv.join_count += 1
+    await db.commit()
+
     canvas = await crud.get_canvas(db, inv.canvas_id)
     if not canvas:
         raise HTTPException(status_code=404, detail="Canvas not found")
