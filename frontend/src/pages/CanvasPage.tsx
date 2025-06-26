@@ -436,6 +436,7 @@ const CanvasPage: React.FC = () => {
     const link = `${window.location.origin}/join/${inviteToken}`
     await navigator.clipboard.writeText(link)
     alert(`Invite link copied:\n${link}`)
+    setIsShareOpen(false)
   }
 
   const handleLocationSelect = (location: { name: string; lat: number; lng: number }) => {
@@ -466,7 +467,7 @@ const CanvasPage: React.FC = () => {
   }
 
   return (
-    <>
+    <Dialog open={isShareOpen} onOpenChange={setIsShareOpen}>
       <div className="flex flex-col h-screen bg-gray-100">
         <Header
           onBack={() => {
@@ -514,31 +515,29 @@ const CanvasPage: React.FC = () => {
         </div>
       </div>
 
-      <Dialog open={isShareOpen} onOpenChange={setIsShareOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Invite someone</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={onInvite} className="space-y-4">
-            <Input
-              name="email"
-              type="email"
-              placeholder="friend@example.com"
-              required
-            />
-            <DialogFooter>
-              <Button type="submit">Send Invite</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Invite someone</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={onInvite} className="space-y-4">
+          <Input
+            name="email"
+            type="email"
+            placeholder="friend@example.com"
+            required
+          />
+          <DialogFooter>
+            <Button type="submit">Send Invite</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
 
       <LocationPicker
         isOpen={isLocationPickerOpen}
         onClose={handleLocationPickerClose}
         onLocationSelect={handleLocationSelect}
       />
-    </>
+    </Dialog>
   )
 }
 
