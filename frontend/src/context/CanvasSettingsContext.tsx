@@ -20,7 +20,7 @@ type CanvasAction =
     | { type: "SET_FONT_FAMILY"; payload: string }
 
 const initialState: CanvasSettingsState = {
-    mode: "draw",
+    mode: "select",
     zoom: 100,
     size: 33,
     color: "#000000",

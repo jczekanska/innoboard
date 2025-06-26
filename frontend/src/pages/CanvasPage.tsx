@@ -1,22 +1,14 @@
-import React, {
-  useRef,
-  useState,
-  useEffect,
-  MouseEvent,
-  useContext,
-  ReactNode,
-} from "react"
-import { useParams, useNavigate } from "react-router-dom"
-import { Rnd, ResizeHandleStyles } from "react-rnd"
-
+import React, { useState, useRef, useEffect, useContext, ReactNode } from "react"
 import { AuthContext } from "@/context/AuthContext"
-import { useCanvasSettings } from "@/context/CanvasSettingsContext"
-import { createApiCall } from "@/lib/api"
-
+import { useNavigate, useParams } from "react-router-dom"
 import Header from "@/components/canvasPage/Header"
-import Toolbar, { ToolbarProps } from "@/components/canvasPage/Toolbar"
+import { useCanvasSettings } from "@/context/CanvasSettingsContext"
+import Toolbar from "@/components/canvasPage/Toolbar"
 import ToolsPanel from "@/components/canvasPage/ToolsPanel"
+import { CanvasObject, Mode, Stroke } from "@/types/canvas"
+import { OverlayObject } from "@/components/canvasPage/OverlayObject"
 import { LocationPicker } from "@/components/canvasPage/LocationPicker"
+import { createApiCall } from "@/lib/api"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -28,23 +20,13 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 
-type Mode = "draw" | "erase" | "text" | "move" | "select"
-
-interface TextBox {
-  id: string
-  x: number
-  y: number
-  width: number
-  height: number
-  text: string
-  color: string
-}
-
-interface Stroke {
-  mode: Mode
-  color: string
-  size: number
-  path: { x: number; y: number }[]
+interface DrawEvent {
+    x: number;
+    y: number;
+    mode: Mode
+    color: string;
+    size: number;
+    text?: string;
 }
 
 function linkifyText(text: string): ReactNode[] {
@@ -79,10 +61,12 @@ const CanvasPage: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const wsRef = useRef<WebSocket>()
   const [canvasInfo, setCanvasInfo] = useState<{ name: string } | null>(null)
-  const [texts, setTexts] = useState<TextBox[]>([])
+  const [objects, setObjects] = useState<CanvasObject[]>([])
   const [strokes, setStrokes] = useState<Stroke[]>([])
   const [isDirty, setIsDirty] = useState(false)
   const [isShareOpen, setIsShareOpen] = useState(false)
+  const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false)
+  const [pendingLocationCoords, setPendingLocationCoords] = useState<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
     if (!token || !id) return
@@ -97,7 +81,7 @@ const CanvasPage: React.FC = () => {
     apiCall(`/api/canvases/${id}/data`)
       .then((r) => r.json())
       .then(({ content }) => {
-        setTexts(content.texts || [])
+        setObjects(content.objects || [])
         setStrokes(content.strokes || [])
         if (content.image && canvasRef.current) {
           const ctx = canvasRef.current.getContext("2d")!
@@ -136,14 +120,18 @@ const CanvasPage: React.FC = () => {
       ctx.stroke()
       setIsDirty(true)
     }
-    if (msg.type === "textAdd") {
-      setTexts((ts) => [...ts, msg.payload])
+    if (msg.type === "objectAdd") {
+      setObjects((objs) => [...objs, msg.payload])
       setIsDirty(true)
     }
-    if (msg.type === "textMove" || msg.type === "textResize") {
-      setTexts((ts) =>
-        ts.map((t) => (t.id === msg.payload.id ? msg.payload : t))
+    if (msg.type === "objectUpdate") {
+      setObjects((objs) =>
+        objs.map((obj) => (obj.id === msg.payload.id ? msg.payload : obj))
       )
+      setIsDirty(true)
+    }
+    if (msg.type === "objectDelete") {
+      setObjects((objs) => objs.filter((obj) => obj.id !== msg.payload.id))
       setIsDirty(true)
     }
   }
@@ -183,23 +171,104 @@ const CanvasPage: React.FC = () => {
       const { x, y } = toCanvas(e)
       lastPoint = { x, y }
       
+      // Handle object creation for different modes
       if (mode === "text") {
-        const txt = prompt("Enter text")?.slice(0, 2000)
-        if (!txt) return
-        const box: TextBox = {
+        const obj: CanvasObject = {
           id: crypto.randomUUID(),
+          type: "text",
           x,
           y,
-          width: 150,
+          width: 200,
           height: 50,
-          text: txt,
-          color,
+          text: "",
+          color: state.color,
+          fontSize: state.fontSize,
+          fontFamily: state.fontFamily,
+          rotation: 0,
         }
-        setTexts((ts) => [...ts, box])
+        setObjects((objs) => [...objs, obj])
         wsRef.current?.send(
-          JSON.stringify({ type: "textAdd", payload: box })
+          JSON.stringify({ type: "objectAdd", payload: obj })
         )
         setIsDirty(true)
+        return
+      }
+      
+      if (mode === "image") {
+        const input = document.createElement("input")
+        input.type = "file"
+        input.accept = "image/*"
+        input.onchange = () => {
+          const file = input.files?.[0]
+          if (!file) return
+          const url = URL.createObjectURL(file)
+          const img = new Image()
+          img.onload = () => {
+            const imgWidth = img.width
+            const imgHeight = img.height
+            const imgArea = imgWidth * imgHeight
+            const canvas = canvasRef.current!
+            const maxArea = canvas.width * canvas.height * 0.5
+            let width = imgWidth
+            let height = imgHeight
+            if (imgArea > maxArea) {
+              const scaleFactor = Math.sqrt(maxArea / imgArea)
+              width = imgWidth * scaleFactor
+              height = imgHeight * scaleFactor
+            }
+            const obj: CanvasObject = {
+              id: crypto.randomUUID(),
+              type: "image",
+              x,
+              y,
+              width,
+              height,
+              rotation: 0,
+              src: url,
+            }
+            setObjects((objs) => [...objs, obj])
+            wsRef.current?.send(
+              JSON.stringify({ type: "objectAdd", payload: obj })
+            )
+            setIsDirty(true)
+          }
+          img.src = url
+        }
+        input.click()
+        return
+      }
+      
+      if (mode === "audio") {
+        const input = document.createElement("input")
+        input.type = "file"
+        input.accept = "audio/*"
+        input.onchange = () => {
+          const file = input.files?.[0]
+          if (!file) return
+          const url = URL.createObjectURL(file)
+          const obj: CanvasObject = {
+            id: crypto.randomUUID(),
+            type: "audio",
+            x,
+            y,
+            width: 250,
+            height: 80,
+            url,
+            filename: file.name,
+          }
+          setObjects((objs) => [...objs, obj])
+          wsRef.current?.send(
+            JSON.stringify({ type: "objectAdd", payload: obj })
+          )
+          setIsDirty(true)
+        }
+        input.click()
+        return
+      }
+      
+      if (mode === "location") {
+        setPendingLocationCoords({ x, y })
+        setIsLocationPickerOpen(true)
         return
       }
       
@@ -249,19 +318,13 @@ const CanvasPage: React.FC = () => {
       // Don't call ctx.closePath() to avoid connecting lines
     }
     
-    const onLeave = () => {
-      lastPoint = null
-    }
-
-    window.addEventListener("mousedown", onDown as any)
+    canvas.addEventListener("mousedown", onDown as any)
     window.addEventListener("mousemove", onMove as any)
     window.addEventListener("mouseup", onUp as any)
-    window.addEventListener("mouseleave", onLeave as any)
     return () => {
-      window.removeEventListener("mousedown", onDown as any)
+      canvas.removeEventListener("mousedown", onDown as any)
       window.removeEventListener("mousemove", onMove as any)
       window.removeEventListener("mouseup", onUp as any)
-      window.removeEventListener("mouseleave", onLeave as any)
     }
   }, [mode, color, size, zoom])
 
@@ -269,39 +332,96 @@ const CanvasPage: React.FC = () => {
     const image = canvasRef.current?.toDataURL() ?? null
     apiCall(`/api/canvases/${id}/data`, {
       method: "POST",
-      body: JSON.stringify({ content: { image, texts, strokes } }),
+      body: JSON.stringify({ content: { image, objects, strokes } }),
     })
     setIsDirty(false)
   }
 
-  function updateTextContent(id: string, text: string) {
-    setTexts((ts) => ts.map((b) => (b.id === id ? { ...b, text } : b)))
-    setIsDirty(true)
-  }
-  function updateTextPosition(box: TextBox, d: { x: number; y: number }) {
-    const updated = { ...box, x: d.x, y: d.y }
-    setTexts((ts) => ts.map((t) => (t.id === box.id ? updated : t)))
-    wsRef.current?.send(
-      JSON.stringify({ type: "textMove", payload: updated })
+  function updateObjectPosition(id: string, x: number, y: number) {
+    setObjects(prevObjects =>
+      prevObjects.map(obj =>
+        obj.id === id ? { ...obj, x, y } : obj
+      )
     )
-    setIsDirty(true)
-  }
-  function updateTextResize(
-    box: TextBox,
-    ref: HTMLElement,
-    d: { x: number; y: number }
-  ) {
-    const updated = {
-      ...box,
-      width: parseInt(ref.style.width),
-      height: parseInt(ref.style.height),
-      x: d.x,
-      y: d.y,
+    const updatedObject = objects.find(obj => obj.id === id)
+    if (updatedObject) {
+      const newObj = { ...updatedObject, x, y }
+      wsRef.current?.send(
+        JSON.stringify({ type: "objectUpdate", payload: newObj })
+      )
     }
-    setTexts((ts) => ts.map((t) => (t.id === box.id ? updated : t)))
-    wsRef.current?.send(
-      JSON.stringify({ type: "textResize", payload: updated })
+    setIsDirty(true)
+  }
+
+  function updateObjectRotation(id: string, rotation: number) {
+    setObjects(prevObjects =>
+      prevObjects.map(obj =>
+        obj.id === id ? { ...obj, rotation } : obj
+      )
     )
+    const updatedObject = objects.find(obj => obj.id === id)
+    if (updatedObject && (updatedObject.type === "image" || updatedObject.type === "text")) {
+      const newObj = { ...updatedObject, rotation }
+      wsRef.current?.send(
+        JSON.stringify({ type: "objectUpdate", payload: newObj })
+      )
+    }
+    setIsDirty(true)
+  }
+
+  function updateObjectDimension(id: string, width: number, height: number) {
+    setObjects(prevObjects =>
+      prevObjects.map(obj =>
+        obj.id === id ? { ...obj, width, height } : obj
+      )
+    )
+    const updatedObject = objects.find(obj => obj.id === id)
+    if (updatedObject) {
+      const newObj = { ...updatedObject, width, height }
+      wsRef.current?.send(
+        JSON.stringify({ type: "objectUpdate", payload: newObj })
+      )
+    }
+    setIsDirty(true)
+  }
+
+  function deleteObject(id: string) {
+    setObjects(prevObjects => prevObjects.filter(obj => obj.id !== id))
+    wsRef.current?.send(
+      JSON.stringify({ type: "objectDelete", payload: { id } })
+    )
+    setIsDirty(true)
+  }
+
+  function updateObjectText(id: string, text: string) {
+    setObjects(prevObjects =>
+      prevObjects.map(obj =>
+        obj.id === id && obj.type === "text" ? { ...obj, text } : obj
+      )
+    )
+    const updatedObject = objects.find(obj => obj.id === id)
+    if (updatedObject && updatedObject.type === "text") {
+      const newObj = { ...updatedObject, text }
+      wsRef.current?.send(
+        JSON.stringify({ type: "objectUpdate", payload: newObj })
+      )
+    }
+    setIsDirty(true)
+  }
+
+  function updateObjectStyle(id: string, style: { color?: string; fontSize?: number; fontFamily?: string }) {
+    setObjects(prevObjects =>
+      prevObjects.map(obj =>
+        obj.id === id && obj.type === "text" ? { ...obj, ...style } : obj
+      )
+    )
+    const updatedObject = objects.find(obj => obj.id === id)
+    if (updatedObject && updatedObject.type === "text") {
+      const newObj = { ...updatedObject, ...style }
+      wsRef.current?.send(
+        JSON.stringify({ type: "objectUpdate", payload: newObj })
+      )
+    }
     setIsDirty(true)
   }
 
@@ -318,37 +438,50 @@ const CanvasPage: React.FC = () => {
     alert(`Invite link copied:\n${link}`)
   }
 
-  const toolbarProps: ToolbarProps = {
-    onSave: saveContent,
-    onShare: () => setIsShareOpen(true),
-    onDashboard: () => {
-      if (isDirty && !confirm("Discard unsaved changes?")) return
-      navigate("/dashboard")
-    },
+  const handleLocationSelect = (location: { name: string; lat: number; lng: number }) => {
+    if (!pendingLocationCoords) return
+
+    const obj: CanvasObject = {
+      id: crypto.randomUUID(),
+      type: "location",
+      x: pendingLocationCoords.x,
+      y: pendingLocationCoords.y,
+      width: 200,
+      height: 150,
+      label: location.name,
+      lat: location.lat,
+      lng: location.lng,
+    }
+    setObjects((objs) => [...objs, obj])
+    wsRef.current?.send(
+      JSON.stringify({ type: "objectAdd", payload: obj })
+    )
+    setIsDirty(true)
+    setPendingLocationCoords(null)
   }
 
-  const textHandles: ResizeHandleStyles = {
-    top: { height: 10, top: -5, cursor: "ns-resize" },
-    bottom: { height: 10, bottom: -5, cursor: "ns-resize" },
-    left: { width: 10, left: -5, cursor: "ew-resize" },
-    right: { width: 10, right: -5, cursor: "ew-resize" },
-    topLeft: { width: 10, height: 10, left: -5, top: -5, cursor: "nwse-resize" },
-    topRight: { width: 10, height: 10, right: -5, top: -5, cursor: "nesw-resize" },
-    bottomLeft: { width: 10, height: 10, left: -5, bottom: -5, cursor: "nesw-resize" },
-    bottomRight: { width: 10, height: 10, right: -5, bottom: -5, cursor: "nwse-resize" },
+  const handleLocationPickerClose = () => {
+    setIsLocationPickerOpen(false)
+    setPendingLocationCoords(null)
   }
 
   return (
-    <Dialog>
+    <>
       <div className="flex flex-col h-screen bg-gray-100">
         <Header
-          onBack={() => toolbarProps.onDashboard()}
+          onBack={() => {
+            if (isDirty && !confirm("Discard unsaved changes?")) return
+            navigate("/dashboard")
+          }}
           name={canvasInfo?.name ?? "(untitled)"}
-          onShare={() => toolbarProps.onShare()}
+          onShare={() => setIsShareOpen(true)}
         />
 
         <div className="flex flex-1 pt-13">
-          <Toolbar {...toolbarProps} />
+          <Toolbar onSave={saveContent} onShare={() => setIsShareOpen(true)} onDashboard={() => {
+            if (isDirty && !confirm("Discard unsaved changes?")) return
+            navigate("/dashboard")
+          }} />
 
           <main className="flex-1 relative overflow-auto grid place-items-center p-6">
             <div className="relative">
@@ -359,45 +492,20 @@ const CanvasPage: React.FC = () => {
                 style={{ transform: `scale(${zoom / 100})` }}
                 className="bg-white border"
               />
-              {texts.map((box) => (
-                <Rnd
-                  key={box.id}
-                  size={{ width: box.width, height: box.height }}
-                  position={{ x: box.x, y: box.y }}
-                  bounds="parent"
-                  disableDragging={mode !== "move"}
-                  enableResizing={mode === "move"}
-                  resizeHandleStyles={mode === "move" ? textHandles : {}}
-                  style={{
-                    pointerEvents:
-                      mode === "move" || mode === "select"
-                        ? "auto"
-                        : "none",
-                  }}
-                  onDragStop={(_, d) => updateTextPosition(box, d)}
-                  onResizeStop={(_, __, ref, ___, d) =>
-                    updateTextResize(box, ref, d)
-                  }
-                >
-                  {mode === "move" ? (
-                    <textarea
-                      className="w-full h-full p-1 resize-none bg-white border"
-                      style={{ pointerEvents: "auto", color: box.color }}
-                      value={box.text}
-                      onChange={(e) =>
-                        updateTextContent(box.id, e.target.value)
-                      }
-                      onBlur={saveContent}
-                    />
-                  ) : (
-                    <div
-                      className="w-full h-full p-1 bg-transparent overflow-auto"
-                      style={{ color: box.color }}
-                    >
-                      {linkifyText(box.text)}
-                    </div>
-                  )}
-                </Rnd>
+              {/* Overlay Objects */}
+              {objects.map(obj => (
+                <OverlayObject
+                  key={obj.id}
+                  obj={obj}
+                  updateObjectPosition={updateObjectPosition}
+                  updateObjectRotation={updateObjectRotation}
+                  updateObjectDimension={updateObjectDimension}
+                  updateObjectText={updateObjectText}
+                  updateObjectStyle={updateObjectStyle}
+                  deleteObject={deleteObject}
+                  canvasWidth={800}
+                  canvasHeight={600}
+                />
               ))}
             </div>
           </main>
@@ -406,29 +514,31 @@ const CanvasPage: React.FC = () => {
         </div>
       </div>
 
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Invite someone</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={onInvite} className="space-y-4">
-          <Input
-            name="email"
-            type="email"
-            placeholder="friend@example.com"
-            required
-          />
-          <DialogFooter>
-            <Button type="submit">Send Invite</Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
+      <Dialog open={isShareOpen} onOpenChange={setIsShareOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Invite someone</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={onInvite} className="space-y-4">
+            <Input
+              name="email"
+              type="email"
+              placeholder="friend@example.com"
+              required
+            />
+            <DialogFooter>
+              <Button type="submit">Send Invite</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <LocationPicker
-        isOpen={false}
-        onClose={() => {}}
-        onLocationSelect={() => {}}
+        isOpen={isLocationPickerOpen}
+        onClose={handleLocationPickerClose}
+        onLocationSelect={handleLocationSelect}
       />
-    </Dialog>
+    </>
   )
 }
 

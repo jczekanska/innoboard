@@ -32,8 +32,8 @@ const MODE_ICONS: Record<Mode, React.FC> = {
   draw: PencilLine,
   erase: Eraser,
   select: MousePointer,
-  move: MoveIcon, // move also allows resizing
-  // resize: Scaling,
+  move: MoveIcon,
+  resize: Scaling,
   rotate: RotateCw,
   delete: Trash2,
   text: Type,
@@ -71,14 +71,14 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <ToolsButton
           icon={Plus}
           onClick={() =>
-            dispatch({ type: "SET_ZOOM", payload: Math.max(25, zoom + 25) })
+            dispatch({ type: "SET_ZOOM", payload: zoom < 350 ? zoom + 25 : zoom })
           }
         />
         <span className="text-xs font-medium">{zoom}%</span>
         <ToolsButton
           icon={Minus}
           onClick={() =>
-            dispatch({ type: "SET_ZOOM", payload: Math.min(350, zoom - 25) })
+            dispatch({ type: "SET_ZOOM", payload: zoom > 25 ? zoom - 25 : zoom })
           }
         />
       </section>
