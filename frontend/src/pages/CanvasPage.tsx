@@ -225,38 +225,44 @@ const CanvasPage: React.FC = () => {
         input.onchange = () => {
           const file = input.files?.[0]
           if (!file) return
-          const url = URL.createObjectURL(file)
-          const img = new Image()
-          img.onload = () => {
-            const imgWidth = img.width
-            const imgHeight = img.height
-            const imgArea = imgWidth * imgHeight
-            const canvas = canvasRef.current!
-            const maxArea = canvas.width * canvas.height * 0.5
-            let width = imgWidth
-            let height = imgHeight
-            if (imgArea > maxArea) {
-              const scaleFactor = Math.sqrt(maxArea / imgArea)
-              width = imgWidth * scaleFactor
-              height = imgHeight * scaleFactor
+          
+          // Convert file to base64 data URL for sharing across users
+          const reader = new FileReader()
+          reader.onload = () => {
+            const dataUrl = reader.result as string
+            const img = new Image()
+            img.onload = () => {
+              const imgWidth = img.width
+              const imgHeight = img.height
+              const imgArea = imgWidth * imgHeight
+              const canvas = canvasRef.current!
+              const maxArea = canvas.width * canvas.height * 0.5
+              let width = imgWidth
+              let height = imgHeight
+              if (imgArea > maxArea) {
+                const scaleFactor = Math.sqrt(maxArea / imgArea)
+                width = imgWidth * scaleFactor
+                height = imgHeight * scaleFactor
+              }
+              const obj: CanvasObject = {
+                id: crypto.randomUUID(),
+                type: "image",
+                x,
+                y,
+                width,
+                height,
+                rotation: 0,
+                src: dataUrl, // Use base64 data URL instead of blob URL
+              }
+              setObjects((objs) => [...objs, obj])
+              wsRef.current?.send(
+                JSON.stringify({ type: "objectAdd", payload: obj })
+              )
+              setIsDirty(true)
             }
-            const obj: CanvasObject = {
-              id: crypto.randomUUID(),
-              type: "image",
-              x,
-              y,
-              width,
-              height,
-              rotation: 0,
-              src: url,
-            }
-            setObjects((objs) => [...objs, obj])
-            wsRef.current?.send(
-              JSON.stringify({ type: "objectAdd", payload: obj })
-            )
-            setIsDirty(true)
+            img.src = dataUrl
           }
-          img.src = url
+          reader.readAsDataURL(file) // Convert to base64 data URL
         }
         input.click()
         return
@@ -269,22 +275,28 @@ const CanvasPage: React.FC = () => {
         input.onchange = () => {
           const file = input.files?.[0]
           if (!file) return
-          const url = URL.createObjectURL(file)
-          const obj: CanvasObject = {
-            id: crypto.randomUUID(),
-            type: "audio",
-            x,
-            y,
-            width: 250,
-            height: 80,
-            url,
-            filename: file.name,
+          
+          // Convert file to base64 data URL for sharing across users
+          const reader = new FileReader()
+          reader.onload = () => {
+            const dataUrl = reader.result as string
+            const obj: CanvasObject = {
+              id: crypto.randomUUID(),
+              type: "audio",
+              x,
+              y,
+              width: 250,
+              height: 80,
+              url: dataUrl, // Use base64 data URL instead of blob URL
+              filename: file.name,
+            }
+            setObjects((objs) => [...objs, obj])
+            wsRef.current?.send(
+              JSON.stringify({ type: "objectAdd", payload: obj })
+            )
+            setIsDirty(true)
           }
-          setObjects((objs) => [...objs, obj])
-          wsRef.current?.send(
-            JSON.stringify({ type: "objectAdd", payload: obj })
-          )
-          setIsDirty(true)
+          reader.readAsDataURL(file) // Convert to base64 data URL
         }
         input.click()
         return

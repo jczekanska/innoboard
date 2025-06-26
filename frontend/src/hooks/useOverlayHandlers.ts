@@ -187,8 +187,9 @@ export const useOverlayHandlers = ({
             setIsDeleting(true);
             
             // Delay actual deletion until animation completes
-            setTimeout(() => {
+            animationRef.current = window.setTimeout(() => {
                 deleteObject(obj.id);
+                setIsDeleting(false);
             }, 300); // Match this with CSS animation duration
         },
         [obj.id, deleteObject],
