@@ -1,21 +1,21 @@
 import React, { useEffect, useContext, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
+import { createApiCall } from "../lib/api";
 
 const JoinPage: React.FC = () => {
   const { token: inviteToken } = useParams<{ token: string }>();
-  const { token: jwt, setToken } = useContext(AuthContext);
+  const { token: jwt, logout } = useContext(AuthContext);
   const navigate = useNavigate();
   const [error, setError] = useState<string|null>(null);
+  const apiCall = createApiCall({ token: jwt, logout });
 
   useEffect(() => {
     if (!jwt) {
       navigate(`/?next=/join/${inviteToken}`);
       return;
     }
-    fetch(`/api/join/${inviteToken}`, {
-      headers: { Authorization: `Bearer ${jwt}` },
-    })
+    apiCall(`/api/join/${inviteToken}`)
       .then(r => {
         if (!r.ok) throw new Error("Invalid or unauthorized invite");
         return r.json();

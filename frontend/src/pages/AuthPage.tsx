@@ -85,7 +85,6 @@ const AuthPage: React.FC = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail ?? 'Error');
 
-      localStorage.setItem('access_token', data.access_token);
       setToken(data.access_token);
       navigate('/dashboard');
     } catch (err: any) {
@@ -206,9 +205,6 @@ const AuthPage: React.FC = () => {
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <Label htmlFor="password-login">Password</Label>
-                    <Button variant="link" className="p-0 text-xs">
-                      Forgot password?
-                    </Button>
                   </div>
                   <Input
                     id="password-login"

@@ -7,6 +7,7 @@ from .models import User, Canvas, Invitation
 from .auth import get_password_hash
 from typing import Optional
 from datetime import datetime, timedelta
+from .auth import get_password_hash, verify_password
 
 async def get_user_by_email(db: AsyncSession, email: str):
     result = await db.execute(select(User).where(User.email == email))
@@ -121,3 +122,23 @@ async def delete_invitation(db: AsyncSession, canvas_id: int, token: str):
     await db.delete(inv)
     await db.commit()
     return True
+async def update_user_email(db: AsyncSession, user: User, current_password: str, new_email: str):
+    if not verify_password(current_password, user.hashed_password):
+        return False, "Incorrect password"
+
+    user.email = new_email
+    try:
+        await db.commit()
+        await db.refresh(user)
+        return True, None
+    except IntegrityError:
+        await db.rollback()
+        return False, "This email is already in use."
+    
+async def update_user_password(db: AsyncSession, user: User, current_password: str, new_password: str):
+    if not verify_password(current_password, user.hashed_password):
+        return False, "Incorrect current password"
+
+    user.hashed_password = get_password_hash(new_password)
+    await db.commit()
+    return True, None

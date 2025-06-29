@@ -61,5 +61,15 @@ class InviteOut(BaseModel):
 class MemberOut(BaseModel):
     email: EmailStr
     role: Literal["owner", "editor"]
+    
+class ChangeEmail(BaseModel):
+    current_password: str
+    new_email: EmailStr
+
+    model_config = ConfigDict(from_attributes=True)
+
+class ChangePassword(BaseModel):
+    current_password: str
+    new_password: str
 
     model_config = ConfigDict(from_attributes=True)

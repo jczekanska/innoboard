@@ -17,6 +17,8 @@ interface Props {
     deleteObject: (id: string) => void;
     canvasWidth: number;
     canvasHeight: number;
+    selectedId: string | null;
+    onSelect: (id: string) => void;
 }
 
 // Helper functions for coordinate transformations
@@ -39,7 +41,9 @@ export const OverlayObject = React.memo<Props>(({
     updateObjectStyle,
     deleteObject,
     canvasWidth,
-    canvasHeight
+    canvasHeight,
+    selectedId,
+    onSelect
 }) => {
     const { state } = useCanvasSettings();
     const { zoom, mode } = state;
@@ -121,8 +125,36 @@ export const OverlayObject = React.memo<Props>(({
                         isDragging={isDragging}
                         isRotating={isRotating}
                         isResizing={isResizing}
+                        isSelected={isSelected}
                         onTextChange={(text) => updateObjectText(obj.id, text)}
                         onStyleChange={(style) => updateObjectStyle(obj.id, style)}
+                    />
+                );
+            case "circle":
+                return (
+                    <div
+                        className={commonClasses}
+                        style={{
+                            ...style,
+                            borderRadius: "50%",
+                            borderColor: obj.color,
+                            borderWidth: `${obj.strokeWidth}px`,
+                            borderStyle: "solid",
+                            backgroundColor: "transparent",
+                        }}
+                    />
+                );
+            case "rectangle":
+                return (
+                    <div
+                        className={commonClasses}
+                        style={{
+                            ...style,
+                            borderColor: obj.color,
+                            borderWidth: `${obj.strokeWidth}px`,
+                            borderStyle: "solid",
+                            backgroundColor: "transparent",
+                        }}
                     />
                 );
             default:
@@ -131,10 +163,22 @@ export const OverlayObject = React.memo<Props>(({
     };
 
     const transformed = useMemo(() => getTransformedProperties(), [obj, zoomFactor, canvasWidth, canvasHeight]);
-    const rotation = (obj.type === "image" || obj.type === "text") ? obj.rotation || 0 : 0;
+    const rotation = (obj.type === "image" || obj.type === "text" || obj.type === "circle" || obj.type === "rectangle") ? obj.rotation || 0 : 0;
 
     // Disable pointer events for draw/erase modes to allow painting through
     const shouldDisablePointerEvents = mode === 'draw' || mode === 'erase';
+    
+    // Handle selection in select mode
+    const handleClick = (e: React.MouseEvent) => {
+        if (mode === 'select') {
+            e.stopPropagation();
+            onSelect(obj.id);
+        }
+    };
+    
+    // Add selection outline for selected objects
+    const isSelected = selectedId === obj.id;
+    const selectionOutline = isSelected && mode === 'select' ? '2px dashed #3b82f6' : 'none';
 
     return (
         <div
@@ -143,11 +187,13 @@ export const OverlayObject = React.memo<Props>(({
                 transform: `rotate(${rotation}deg)`,
                 left: transformed.x,
                 top: transformed.y,
-                cursor: getCursor(),
+                cursor: mode === 'select' ? 'pointer' : getCursor(),
                 pointerEvents: shouldDisablePointerEvents ? 'none' : 'auto',
+                outline: selectionOutline,
             }}
             draggable={false}
-            onPointerDown={shouldDisablePointerEvents ? undefined : getPointerHandler()}
+            onPointerDown={shouldDisablePointerEvents ? undefined : (mode === 'select' ? undefined : getPointerHandler())}
+            onClick={handleClick}
         >
             {renderObjectContent(transformed.width, transformed.height)}
         </div>
