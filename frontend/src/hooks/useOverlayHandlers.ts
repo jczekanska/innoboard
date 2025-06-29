@@ -70,19 +70,98 @@ export const useOverlayHandlers = ({
     const { toCanvas } = createZoomHelpers(zoom);
 
     // HANDLERS
-    // Resize handler
+    // Special handler for rectangle/circle tools' proportional resizing
+    const handleProportionalResize = useCallback(
+        (e: React.PointerEvent<HTMLDivElement>) => {
+            const startX = e.clientX;
+            const startY = e.clientY;
+            const startWidth = obj.width;
+            const startHeight = obj.height;
+            const rect = e.currentTarget.getBoundingClientRect();
+            
+            // Calculate center of the shape
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            
+            // Determine which edge is being dragged based on mouse position
+            const relativeX = e.clientX - rect.left;
+            const relativeY = e.clientY - rect.top;
+            const edgeThreshold = 20; // pixels from edge
+            
+            let resizeMode: 'width' | 'height' | 'both' = 'both';
+            
+            if (relativeX < edgeThreshold) {
+                resizeMode = 'width'; // left edge
+            } else if (relativeX > rect.width - edgeThreshold) {
+                resizeMode = 'width'; // right edge
+            } else if (relativeY < edgeThreshold) {
+                resizeMode = 'height'; // top edge
+            } else if (relativeY > rect.height - edgeThreshold) {
+                resizeMode = 'height'; // bottom edge
+            }
+
+            const onMove = (ev: PointerEvent) => {
+                // Calculate movement relative to center
+                const currentDistanceFromCenterX = ev.clientX - centerX;
+                const currentDistanceFromCenterY = ev.clientY - centerY;
+                const startDistanceFromCenterX = startX - centerX;
+                const startDistanceFromCenterY = startY - centerY;
+                
+                // Calculate how much the distance from center has changed
+                const deltaDistanceX = Math.abs(currentDistanceFromCenterX) - Math.abs(startDistanceFromCenterX);
+                const deltaDistanceY = Math.abs(currentDistanceFromCenterY) - Math.abs(startDistanceFromCenterY);
+                
+                // Convert to canvas coordinates and apply 2x factor since we're measuring from center
+                const deltaX = toCanvas(deltaDistanceX * 2);
+                const deltaY = toCanvas(deltaDistanceY * 2);
+                
+                let newWidth = startWidth;
+                let newHeight = startHeight;
+                
+                if (resizeMode === 'width') {
+                    newWidth = startWidth + deltaX;
+                } else if (resizeMode === 'height') {
+                    newHeight = startHeight + deltaY;
+                } else {
+                    // Both dimensions (corner drag)
+                    const aspectRatio = startWidth / startHeight;
+                    newWidth = startWidth + deltaX;
+                    newHeight = newWidth / aspectRatio;
+                }
+
+                if (newWidth > MIN_SIZE && newHeight > MIN_SIZE) {
+                    updateObjectDimension(obj.id, newWidth, newHeight);
+                }
+            };
+
+            startDrag(
+                e,
+                onMove,
+                () => setIsResizing(true),
+                () => setIsResizing(false),
+            );
+        },
+        [
+            obj.id,
+            obj.width,
+            obj.height,
+            updateObjectDimension,
+            startDrag,
+            toCanvas,
+        ],
+    );
+
+    // Regular resize handler (maintains aspect ratio)
     const handleResize = useCallback(
         (e: React.PointerEvent<HTMLDivElement>) => {
             const startX = e.clientX;
-            // const startY = e.clientY;
             const startWidth = obj.width;
             const startHeight = obj.height;
             const aspectRatio = startWidth / startHeight;
 
             const onMove = (ev: PointerEvent) => {
                 const deltaX = toCanvas(ev.clientX - startX);
-                // const deltaY = toCanvas(ev.clientY - startY);
-
+                
                 // Maintain aspect ratio based on X delta
                 const newWidth = startWidth + deltaX;
                 const newHeight = newWidth / aspectRatio;
@@ -187,8 +266,9 @@ export const useOverlayHandlers = ({
             setIsDeleting(true);
             
             // Delay actual deletion until animation completes
-            setTimeout(() => {
+            animationRef.current = window.setTimeout(() => {
                 deleteObject(obj.id);
+                setIsDeleting(false);
             }, 300); // Match this with CSS animation duration
         },
         [obj.id, deleteObject],
@@ -204,12 +284,24 @@ export const useOverlayHandlers = ({
                 return handleRotation;
             case "resize":
                 return handleResize;
+            case "rectangle":
+                // Use proportional resize for rectangle tool on rectangles
+                if (obj.type === "rectangle") {
+                    return handleProportionalResize;
+                }
+                return undefined;
+            case "circle":
+                // Use proportional resize for circle tool on circles
+                if (obj.type === "circle") {
+                    return handleProportionalResize;
+                }
+                return undefined;
             case "delete":
                 return handleDelete;
             default:
                 return undefined;
         }
-    }, [mode, handlePosition, handleRotation, handleResize, handleDelete]);
+    }, [mode, handlePosition, handleRotation, handleResize, handleProportionalResize, handleDelete, obj.type]);
 
     // Determine cursor style
     const getCursor = useCallback((): string => {
