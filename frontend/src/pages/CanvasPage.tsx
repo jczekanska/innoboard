@@ -154,6 +154,10 @@ const CanvasPage: React.FC = () => {
       ctx.stroke()
       setIsDirty(true)
     }
+    if (msg.type === "remove_stroke") {
+      setStrokes((prev) => prev.filter(s => s.id !== msg.payload))
+      setIsDirty(true)
+    }
     if (msg.type === "objectAdd") {
       setObjects((objs) => [...objs, msg.payload])
       setIsDirty(true)
@@ -176,7 +180,8 @@ const CanvasPage: React.FC = () => {
       ctx.lineWidth = st.size
       ctx.strokeStyle = st.color
       ctx.globalCompositeOperation =
-        st.mode === "erase" ? "destination-out" : "source-over"
+        st.mode === "erase" ? "destination‑out" : "source‑over"
+
       st.path.forEach((pt, i) => {
         if (i === 0) ctx.moveTo(pt.x, pt.y)
         else ctx.lineTo(pt.x, pt.y)
@@ -358,7 +363,7 @@ const CanvasPage: React.FC = () => {
         return
       }
       
-      if (mode === "draw" || mode === "erase") {
+      if (mode === "draw" || mode === "erase" || mode === "highlight") {
         drawing = true
         currentStroke = { mode, color, size, path: [{ x, y }] }
         ctx.beginPath()
@@ -371,14 +376,12 @@ const CanvasPage: React.FC = () => {
       
       const { x, y } = toCanvas(e)
       
-      // Only draw if mouse button is pressed (e.buttons === 1)
       if ((e as any).buttons !== 1) return
       
       ctx.lineWidth = currentStroke.size
       ctx.strokeStyle = currentStroke.color
       ctx.globalCompositeOperation =
         currentStroke.mode === "erase" ? "destination-out" : "source-over"
-      
       ctx.lineTo(x, y)
       ctx.stroke()
       
@@ -396,12 +399,25 @@ const CanvasPage: React.FC = () => {
 
     const onUp = () => {
       if (drawing && currentStroke) {
-        setStrokes((prev) => [...prev, currentStroke!])
+        const stamped: Stroke = {
+          ...currentStroke!,
+          id: crypto.randomUUID(),
+          createdAt: Date.now(),
+        }
+        setStrokes((prev) => [...prev, stamped])
+        if (stamped.mode === "highlight") {
+          setTimeout(() => {
+            setStrokes((prev) => prev.filter(s => s.id !== stamped.id))
+            wsRef.current?.send(JSON.stringify({
+              type: "remove_stroke",
+              payload: stamped.id
+            }))
+          }, 1000)
+        }
         currentStroke = null
       }
       drawing = false
       lastPoint = null
-      // Don't call ctx.closePath() to avoid connecting lines
     }
     
     canvas.addEventListener("mousedown", onDown as any)
@@ -413,6 +429,14 @@ const CanvasPage: React.FC = () => {
       window.removeEventListener("mouseup", onUp as any)
     }
   }, [mode, color, size, zoom])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext("2d")!
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    replayStrokes(ctx, strokes)
+  }, [strokes])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -775,6 +799,7 @@ const CanvasPage: React.FC = () => {
                 <OverlayObject
                   key={obj.id}
                   obj={obj}
+                  linkify={linkifyText}
                   updateObjectPosition={updateObjectPosition}
                   updateObjectRotation={updateObjectRotation}
                   updateObjectDimension={updateObjectDimension}

@@ -12,6 +12,7 @@ import type { CanvasObject, Stroke, CanvasContent } from "@/types/canvas";
 type Action =
   | { type: "init_content"; content: CanvasContent }
   | { type: "add_stroke"; stroke: Stroke }
+  | { type: "remove_stroke"; id: string }
   | { type: "add_object"; object: CanvasObject }
   | { type: "update_object"; object: CanvasObject }
   | { type: "delete_object"; objectId: string };
@@ -27,6 +28,11 @@ function canvasReducer(state: CanvasContent, action: Action): CanvasContent {
       return {
         ...state,
         strokes: [...state.strokes, action.stroke],
+      };
+    case "remove_stroke":
+      return {
+        ...state,
+        strokes: state.strokes.filter(s => s.id !== action.id)
       };
     case "add_object":
       return {

@@ -16,6 +16,7 @@ import {
   Minus,
   Circle,
   Square,
+  Highlighter
 } from "lucide-react"
 import ToolsButton from "./ToolsButton"
 import { useCanvasSettings } from "@/context/CanvasSettingsContext"
@@ -24,6 +25,7 @@ export type ToolbarProps = {}
 
 const MODE_ICONS: Record<Mode, React.FC> = {
   draw: PencilLine,
+  highlight: Highlighter,
   erase: Eraser,
   select: MousePointer,
   move: MoveIcon,

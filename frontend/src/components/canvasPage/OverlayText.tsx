@@ -1,167 +1,148 @@
-import { useRef, useState, useEffect, useCallback } from 'react';
-import { useCanvasSettings } from '@/context/CanvasSettingsContext';
+import React, { ReactNode, useRef, useEffect, useState, useCallback } from "react";
+import { useCanvasSettings } from "@/context/CanvasSettingsContext";
+import { Mode } from "@/types/canvas";
 
 interface OverlayTextProps {
-    text: string;
-    color: string;
-    fontSize: number;
-    fontFamily: string;
-    width: number;
-    height: number;
-    isInteractable: boolean;
-    mode: string;
-    isDragging: boolean;
-    isRotating: boolean;
-    isResizing: boolean;
-    isSelected: boolean;
-    onTextChange: (text: string) => void;
-    onStyleChange: (style: { color?: string; fontSize?: number; fontFamily?: string }) => void;
+  text: string;
+  linkify?: (text: string) => ReactNode[];
+  color: string;
+  fontSize: number;
+  fontFamily: string;
+  width: number;
+  height: number;
+  isInteractable: boolean;
+  mode: Mode;
+  isSelected: boolean;
+  onTextChange: (text: string) => void;
+  onStyleChange: (style: { color?: string; fontSize?: number; fontFamily?: string }) => void;
 }
 
-export const OverlayText = ({
-    text,
+export const OverlayText: React.FC<OverlayTextProps> = ({
+  text,
+  linkify,
+  color,
+  fontSize,
+  fontFamily,
+  width,
+  height,
+  isInteractable,
+  mode,
+  isSelected,
+  onTextChange,
+  onStyleChange,
+}) => {
+  const { state } = useCanvasSettings();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+
+  const allowEdit = isInteractable && mode !== "view";
+
+  useEffect(() => {
+    if (isEditing && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [isEditing]);
+
+  const handleDoubleClick = useCallback(() => {
+    if (allowEdit) {
+      setIsEditing(true);
+    }
+  }, [allowEdit]);
+
+  const handleBlur = useCallback(() => {
+    setIsEditing(false);
+  }, []);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setIsEditing(false);
+      textareaRef.current?.blur();
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isSelected) return;
+
+    const hasChanged =
+      state.fontSize !== fontSize ||
+      state.fontFamily !== fontFamily ||
+      state.color !== color;
+
+    if (hasChanged) {
+      onStyleChange({
+        fontSize: state.fontSize,
+        fontFamily: state.fontFamily,
+        color: state.color,
+      });
+    }
+  }, [state.fontSize, state.fontFamily, state.color, fontSize, fontFamily, color, isSelected, onStyleChange]);
+
+  const baseStyle = {
     color,
     fontSize,
     fontFamily,
     width,
     height,
-    isInteractable,
-    mode,
-    isDragging,
-    isRotating,
-    isResizing,
-    isSelected,
-    onTextChange,
-    onStyleChange,
-}: OverlayTextProps) => {
-    const { state, dispatch } = useCanvasSettings();
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const [isEditing, setIsEditing] = useState(false);
-    const [isHovered, setIsHovered] = useState(false);
-    const [localText, setLocalText] = useState(text);
+    lineHeight: "1.2",
+    padding: "4px",
+  };
 
-    // Update local text when prop changes
-    useEffect(() => {
-        setLocalText(text);
-    }, [text]);
+  const displayedText = text || "Lorem Ipsum";
 
-    // Handle double click to start editing
-    const handleDoubleClick = useCallback(() => {
-        if (!isInteractable) return;
-        setIsEditing(true);
-        setTimeout(() => {
-            textareaRef.current?.focus();
-        }, 0);
-    }, [isInteractable]);
-
-    // Handle text change
-    const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        const newText = e.target.value;
-        setLocalText(newText);
-        onTextChange(newText);
-    }, [onTextChange]);
-
-    // Handle blur to stop editing
-    const handleBlur = useCallback(() => {
-        setIsEditing(false);
-    }, []);
-
-    // Handle key press (Escape to stop editing, Enter for new line)
-    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-        if (e.key === 'Escape') {
-            setIsEditing(false);
-            textareaRef.current?.blur();
-        }
-    }, []);
-
-    // Apply font changes when selected (editing or just selected) and settings change
-    useEffect(() => {
-        // Only apply changes if the text is selected (either editing or just selected)
-        if (!isSelected) return;
-
-        // Check if any font settings have changed from current text object settings
-        const hasChanges =
-            state.fontFamily !== fontFamily ||
-            state.fontSize !== fontSize ||
-            state.color !== color;
-
-        if (hasChanges) {
-            // Update the style for this text object to match current settings
-            onStyleChange({
-                fontFamily: state.fontFamily,
-                fontSize: state.fontSize,
-                color: state.color,
-            });
-        }
-    }, [state.fontFamily, state.fontSize, state.color, isSelected, fontFamily, fontSize, color, onStyleChange]);
-
-    const textStyle = {
-        color,
-        fontSize: `${fontSize}px`,
-        fontFamily,
-        width: '100%',
-        height: '100%',
-        border: 'none',
-        outline: 'none',
-        background: 'transparent',
-        resize: 'none' as const,
-        overflow: 'hidden' as const,
-        padding: '4px',
-        lineHeight: '1.2',
-        wordWrap: 'break-word' as const,
-    };
-
-    // Determine if pointer events should be disabled (for painting/erasing through textboxes)
-    const shouldDisablePointerEvents = mode === 'draw' || mode === 'erase';
-
-    // Allow hover for interactive modes, but disable text interaction for non-select modes
-    const allowTextInteraction = mode === 'select' || mode === 'text';
-
+  if (!allowEdit || (!isSelected && !isEditing)) {
     return (
-        <div
-            className={`relative ${allowTextInteraction ? 'cursor-text' : 'cursor-default'}`}
-            style={{
-                width,
-                height,
-                pointerEvents: shouldDisablePointerEvents ? 'none' : 'auto'
-            }}
-            onDoubleClick={allowTextInteraction ? handleDoubleClick : undefined}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-        >
-            {isEditing ? (
-                <textarea
-                    ref={textareaRef}
-                    value={localText}
-                    onChange={handleTextChange}
-                    onBlur={handleBlur}
-                    onKeyDown={handleKeyDown}
-                    style={textStyle}
-                    placeholder="Enter text..."
-                    disabled={!isInteractable}
-                />
-            ) : (
-                <div
-                    style={{
-                        ...textStyle,
-                        whiteSpace: 'pre-wrap',
-                        cursor: isInteractable ? 'text' : 'default',
-                        userSelect: isInteractable ? 'text' : 'none',
-                    }}
-                >
-                    {localText || 'Lorem Ipsum'}
-                </div>
-            )}
-
-            {/* Visual indicator when in editing mode */}
-            {isEditing && (
-                <div className="absolute inset-0 border-2 border-blue-400 border-dashed pointer-events-none rounded" />
-            )}
-
-            {/* Faint dotted outline when hovering or during operations */}
-            {(isHovered || isDragging || isRotating || isResizing) && !isEditing && !shouldDisablePointerEvents && (
-                <div className="absolute inset-0 border border-gray-400 border-dotted border-opacity-40 pointer-events-none rounded" />
-            )}
-        </div>
+      <div
+        className="relative"
+        style={{
+          ...baseStyle,
+          overflow: "hidden",
+          whiteSpace: "pre-wrap",
+          pointerEvents: "auto",
+          cursor: isInteractable ? "text" : "default",
+          userSelect: isInteractable ? "text" : "none",
+        }}
+        onDoubleClick={handleDoubleClick}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        {linkify ? linkify(displayedText) : displayedText}
+        {(isHovered || isSelected) && (
+          <div className="absolute inset-0 border border-dotted border-gray-400 border-opacity-40 rounded pointer-events-none" />
+        )}
+      </div>
     );
+  }
+
+  return (
+    <div
+      className="relative"
+      style={{ width, height }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <textarea
+        ref={textareaRef}
+        value={text}
+        onChange={(e) => onTextChange(e.target.value)}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+        style={{
+          ...baseStyle,
+          resize: "none",
+          border: "none",
+          outline: "none",
+          background: "transparent",
+        }}
+        onClick={(e) => e.stopPropagation()}
+        placeholder="Enter text..."
+      />
+      {isSelected && (
+        <div className="absolute inset-0 border-2 border-blue-400 border-dashed rounded pointer-events-none" />
+      )}
+    </div>
+  );
 };
+
+OverlayText.displayName = "OverlayText";

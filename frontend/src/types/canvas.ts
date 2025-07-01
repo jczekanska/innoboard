@@ -1,8 +1,9 @@
 export interface Stroke {
-  mode: "draw" | "erase";
+  mode: "draw" | "erase" | "highlight";
   color: string;
   size: number;
   path: { x: number; y: number }[];
+  createdAt: number;
 }
 
 export interface TextBox {
@@ -33,7 +34,8 @@ export type Mode =
   | "audio"
   | "location"
   | "circle"
-  | "rectangle";
+  | "rectangle"
+  | "highlight";
 
 export type Point = { x: number; y: number };
 
