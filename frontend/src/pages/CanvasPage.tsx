@@ -79,13 +79,12 @@ const CanvasPage: React.FC = () => {
   const [inviteExpiry, setInviteExpiry] = useState<"24h" | "7d" | "never">("24h")
   const [inviteLinks, setInviteLinks] = useState<InviteLink[]>([])
   const [loadingLinks, setLoadingLinks] = useState(false)
+  const prevStrokesCount = useRef(strokes.length);
   
-  // Update selected shape properties when color or size changes
   useEffect(() => {
     if (selectedId && (mode === "select")) {
       const selectedObject = objects.find(obj => obj.id === selectedId)
       if (selectedObject && (selectedObject.type === "circle" || selectedObject.type === "rectangle")) {
-        // Only update if the color or strokeWidth actually changed
         if (selectedObject.color !== color || selectedObject.strokeWidth !== size) {
           setObjects(prevObjects =>
             prevObjects.map(obj =>
@@ -145,19 +144,36 @@ const CanvasPage: React.FC = () => {
   function handleRemote(msg: any) {
     const ctx = canvasRef.current?.getContext("2d")
     if (msg.type === "draw" && ctx) {
-      const { x, y, color: c, size: s, mode: m } = msg.payload
-      ctx.lineWidth = s
-      ctx.strokeStyle = c
-      ctx.globalCompositeOperation =
-        m === "erase" ? "destination-out" : "source-over"
-      ctx.lineTo(x, y)
-      ctx.stroke()
-      setIsDirty(true)
-    }
-    if (msg.type === "remove_stroke") {
-      setStrokes((prev) => prev.filter(s => s.id !== msg.payload))
-      setIsDirty(true)
-    }
+    const { x, y, color: c, size: s, mode: m } = msg.payload
+    ctx.lineWidth = s
+    ctx.strokeStyle = c
+    ctx.globalCompositeOperation =
+      m === "erase" ? "destination-out" : "source-over"
+    ctx.lineTo(x, y)
+    ctx.stroke()
+    return 
+  }
+  if (msg.type === "strokeAdd") {
+  const st: Stroke = msg.payload
+  ctx.beginPath()
+  ctx.lineWidth = st.size
+  ctx.strokeStyle = st.color
+  ctx.globalCompositeOperation =
+    st.mode === "erase" ? "destination‑out" : "source‑over"
+  st.path.forEach((pt, i) => {
+    if (i === 0) ctx.moveTo(pt.x, pt.y)
+    else ctx.lineTo(pt.x, pt.y)
+  })
+  ctx.stroke()
+  setStrokes(prev => [...prev, st])
+  return
+}
+
+  if (msg.type === "remove_stroke") {
+    setStrokes(prev => prev.filter(s => s.id !== msg.payload))
+    setIsDirty(true)
+    return
+  }
     if (msg.type === "objectAdd") {
       setObjects((objs) => [...objs, msg.payload])
       setIsDirty(true)
@@ -176,18 +192,20 @@ const CanvasPage: React.FC = () => {
 
   function replayStrokes(ctx: CanvasRenderingContext2D, all: Stroke[]) {
     all.forEach((st) => {
-      ctx.beginPath()
-      ctx.lineWidth = st.size
-      ctx.strokeStyle = st.color
+      ctx.beginPath();
+      ctx.lineWidth = st.size;
+      ctx.strokeStyle = st.color;
       ctx.globalCompositeOperation =
-        st.mode === "erase" ? "destination‑out" : "source‑over"
+        st.mode === "erase" ? "destination-out" : "source-over";
 
       st.path.forEach((pt, i) => {
-        if (i === 0) ctx.moveTo(pt.x, pt.y)
-        else ctx.lineTo(pt.x, pt.y)
-      })
-      ctx.stroke()
-    })
+        if (i === 0) ctx.moveTo(pt.x, pt.y);
+        else ctx.lineTo(pt.x, pt.y);
+      });
+      ctx.stroke();
+    });
+
+    ctx.globalCompositeOperation = "source-over";
   }
 
   useEffect(() => {
@@ -210,7 +228,6 @@ const CanvasPage: React.FC = () => {
       const { x, y } = toCanvas(e)
       lastPoint = { x, y }
       
-      // Handle object creation for different modes
       if (mode === "text") {
         const obj: CanvasObject = {
           id: crypto.randomUUID(),
@@ -241,7 +258,6 @@ const CanvasPage: React.FC = () => {
           const file = input.files?.[0]
           if (!file) return
           
-          // Convert file to base64 data URL for sharing across users
           const reader = new FileReader()
           reader.onload = () => {
             const dataUrl = reader.result as string
@@ -404,15 +420,22 @@ const CanvasPage: React.FC = () => {
           id: crypto.randomUUID(),
           createdAt: Date.now(),
         }
-        setStrokes((prev) => [...prev, stamped])
+          // 1) add locally...
+        setStrokes(prev => [...prev, stamped]);
+        // 2) tell all clients about the new stroke
+        wsRef.current?.send(JSON.stringify({
+          type: "strokeAdd",
+          payload: stamped
+        }));
+        // 3) schedule its removal if it's a highlight
         if (stamped.mode === "highlight") {
           setTimeout(() => {
-            setStrokes((prev) => prev.filter(s => s.id !== stamped.id))
+            setStrokes(prev => prev.filter(s => s.id !== stamped.id));
             wsRef.current?.send(JSON.stringify({
               type: "remove_stroke",
               payload: stamped.id
-            }))
-          }, 1000)
+            }));
+          }, 1000);
         }
         currentStroke = null
       }
@@ -431,12 +454,27 @@ const CanvasPage: React.FC = () => {
   }, [mode, color, size, zoom])
 
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext("2d")!
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    replayStrokes(ctx, strokes)
-  }, [strokes])
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d")!;
+
+    const prev = prevStrokesCount.current;
+    const curr = strokes.length;
+
+    // If a stroke was removed (likely a highlight expiring), redraw only non-highlight strokes
+    if (curr < prev) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Replay only draw and erase strokes — skip highlights
+      replayStrokes(
+        ctx,
+        strokes.filter(s => s.mode === "draw" || s.mode === "erase")
+      );
+    }
+
+    prevStrokesCount.current = curr;
+  }, [strokes]);
+
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
